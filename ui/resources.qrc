@@ -4,5 +4,6 @@
         <file>../icons/icon_opt.png</file>
         <file>../icons/icon_loc.png</file>
         <file>../icons/icon_str.png</file>
+        <file>../icons/icon_net.png</file>
     </qresource>
 </RCC>

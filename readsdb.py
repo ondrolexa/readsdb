@@ -25,6 +25,7 @@
 from .readsdb_connect import ReadSDBConnectDialog
 from .readsdb_options import ReadSDBOptionsDialog
 from .readsdb_structures import ReadSDBStructuresDialog
+from .readsdb_plot import ReadSDBPlotDialog
 # read geomag
 from .geomag import geomag
 
@@ -33,7 +34,7 @@ from datetime import date, datetime
 from math import cos, sin, pi
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
-from PyQt5.QtWidgets import QAction
+from PyQt5.QtWidgets import QAction, QWidget,  QFormLayout
 from qgis.core import *
 
 # Initialize Qt resources from file resources.py
@@ -125,6 +126,7 @@ class ReadSDB:
         self.connect_dlg = ReadSDBConnectDialog(self)
         self.options_dlg = ReadSDBOptionsDialog(self)
         self.structures_dlg = ReadSDBStructuresDialog(self)
+        self.plot_dlg = ReadSDBPlotDialog(self)
 
         # Store sites layer
         self.sites_layer = None
@@ -290,6 +292,13 @@ class ReadSDB:
             icon_path,
             text=self.tr(u'Read structures from SDB'),
             callback=self.read_structures,
+            parent=self.iface.mainWindow())
+
+        icon_path = ':/plugins/readsdb/icons/icon_net.png'
+        self.add_action(
+            icon_path,
+            text=self.tr(u'Plot structures'),
+            callback=self.plot_structures,
             parent=self.iface.mainWindow())
 
         # Check database and set actions
@@ -506,3 +515,26 @@ class ReadSDB:
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
+
+    def plot_structures(self):
+        """Select database and set plugin options"""
+        layers = self.iface.layerTreeView().selectedLayers()
+        self.plot_dlg.tabWidget.clear()
+        self.plot_dlg.data_list = []
+        self.plot_dlg.tabs = []
+        typ = {0: Lin, 1: Fol}
+        for layer in layers:
+            fields = [f.name() for f in layer.fields()]
+            if set(['azi', 'inc', 'struct', 'planar']).issubset(fields):
+                features = layer.getFeatures()
+                data = [typ[f.attribute('planar')](f.attribute('azi'), f.attribute('inc')) for f in features]
+                self.plot_dlg.data_list.append(Group(data, layer.name()))
+                self.plot_dlg.tabs.append(QWidget())
+                self.plot_dlg.tabWidget.addTab(self.plot_dlg.tabs[-1], layer.name())
+        if self.plot_dlg.data_list:
+            # show the dialog
+            self.plot_dlg.show()
+            # prepare stereo net
+            self.plot_dlg.plotnet()
+            # Run the dialog event loop
+            self.plot_dlg.exec_()
