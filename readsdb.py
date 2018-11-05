@@ -316,7 +316,8 @@ class ReadSDB:
         # show the dialog
         self.connect_dlg.show()
         # populate dialog
-        self.connect_dlg.sdbinfo(self.settings.value("gui/sdbname", type=str))
+        if self.settings.value("gui/sdbname", type=str):
+            self.connect_dlg.sdbinfo(self.settings.value("gui/sdbname", type=str))
         # Run the dialog event loop
         result = self.connect_dlg.exec_()
         # See if OK was pressed
@@ -333,9 +334,12 @@ class ReadSDB:
         self.options_dlg.offset.setText(self.settings.value("gui/offset", type=str))
         self.options_dlg.corr_gc_auto.setChecked(self.settings.value("gui/auto_gc", type=bool))
         self.options_dlg.corr_md_auto.setChecked(self.settings.value("gui/auto_md", type=bool))
-        # set calendar
-        cdate = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M")
-        self.options_dlg.dateEdit.setDate(QDate(cdate.year, cdate.month, cdate.day))
+        # set magnetic declination calendar
+        try:
+            md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
+        except ValueError:
+            md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+        self.options_dlg.dateEdit.setDate(QDate(md_time.year, md_time.month, md_time.day))
         # Run the dialog event loop
         self.options_dlg.exec_()
 

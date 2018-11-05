@@ -60,10 +60,14 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             sdb = SDB(filename)
             crs = QgsCoordinateReferenceSystem()
             crs.createFromUserInput(sdb.meta("crs"))
-            self.sdbInfoText.setPlainText(sdb.info(verbose=True) + '\nQGIS CRS:{}'.format(crs.description()))
+            self.sdb_info_basic.setPlainText(sdb.info(report='basic') + '\nCRS parsed by QGIS:\n{}'.format(crs.description()))
+            self.sdb_info_data.setPlainText(sdb.info(report='data'))
+            self.sdb_info_tags.setPlainText(sdb.info(report='tags'))
             self.dbok = True
         except:
-            # self.sdbname.setText("")
+            self.sdb_info_basic.clear()
+            self.sdb_info_data.clear()
+            self.sdb_info_tags.clear()
             self.dbok = False
 
     def accept(self):
