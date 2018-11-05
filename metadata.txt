@@ -8,7 +8,8 @@
 
 [general]
 name=Read SDB
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.1
+qgisMaximumVersion=3.99
 description=Read PySDB structural data into QGIS
 version=0.8
 author=Ondrej Lexa
@@ -16,8 +17,8 @@ email=lexa.ondrej@gmail.com
 
 about=ReadSDB is plugin to select and import data from PySDB structural database.
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/ondrolexa/readsdb/issues
+repository=https://github.com/ondrolexa/readsdb
 # End of mandatory metadata
 
 # Recommended items:
@@ -28,9 +29,9 @@ repository=http://repo
 # Tags are comma separated with spaces allowed
 tags=python
 
-homepage=http://homepage
+homepage=https://github.com/ondrolexa/readsdb
 category=Database
-icon=icon.png
+icon=icons/icon_sdb.png
 # experimental flag
 experimental=True
 

@@ -44,6 +44,7 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
         self.btn_calc_md.clicked.connect(self.calc_md)
         self.btn_calc_gc.clicked.connect(self.calc_gc)
+        self.btn_store.clicked.connect(self.store_date)
         self.readsdb = readsdb
         self.settings = self.readsdb.settings
 
@@ -66,3 +67,8 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
     def calc_md(self):
         dec = self.readsdb.calc_md(time=self.dateEdit.date().toPyDate())
         self.angle_md.setText('{:g}'.format(dec))
+
+    def store_date(self):
+        self.readsdb.sdb.meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
+        self.readsdb.iface.messageBar().pushSuccess('SDB Read', 'Date stored in SDB.')
+

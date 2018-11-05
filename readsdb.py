@@ -80,6 +80,11 @@ class ReadSDB:
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        # check SVG dirs
+        readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
+        svg_paths = QgsSettings().value('svg/searchPathsForSVG')
+        if readsdb_svg_path not in svg_paths:
+            QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -421,7 +426,10 @@ class ReadSDB:
             crsDst = QgsProject.instance().crs()
             xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
             # declination calculated for creation date of sdb database
-            md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+            try:
+                md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
+            except ValueError:
+                md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
             is_planar = int(self.sdb.is_planar(struct))
