@@ -21,7 +21,6 @@
  *                                                                         *
  ***************************************************************************/
 """
-
 import os
 
 from PyQt5 import uic
@@ -29,7 +28,10 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, QFileInfo
 from qgis.core import QgsCoordinateReferenceSystem
 
-from apsg.db import SDB
+# Need latest APSG
+import sys
+sys.path.insert(0, '/home/ondro/develrepo/apsg')
+from apsg import SDB
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_connect.ui'))
@@ -48,7 +50,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.btnBrowse.clicked.connect(self.browse)
         self.readsdb = readsdb
         self.settings = self.readsdb.settings
-        
+
         self.sdbinfo(self.settings.value("gui/sdbname", type=str))
 
     def sdbinfo(self, filename):
@@ -61,7 +63,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.sdbInfoText.setPlainText(sdb.info(verbose=True) + '\nQGIS CRS:{}'.format(crs.description()))
             self.dbok = True
         except:
-            #self.sdbname.setText("")
+            # self.sdbname.setText("")
             self.dbok = False
 
     def accept(self):
@@ -75,4 +77,3 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         file, _ = QtWidgets.QFileDialog.getOpenFileName(self, self.readsdb.tr(u'Open SDB database'), self.sdbname.text(), "SDB database (*.sdb);;All files (*.*)")
         if file:
             self.sdbinfo(QFileInfo(file).absoluteFilePath())
-

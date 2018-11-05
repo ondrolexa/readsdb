@@ -21,47 +21,47 @@
  *                                                                         *
  ***************************************************************************/
 """
+# Import the code for the dialog
+from .readsdb_connect import ReadSDBConnectDialog
+from .readsdb_options import ReadSDBOptionsDialog
+from .readsdb_structures import ReadSDBStructuresDialog
+# read geomag
+from .geomag import geomag
+
 import os
 from datetime import date, datetime
 from math import cos, sin, pi
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
-from PyQt5.QtGui import QIcon, QCursor, QColor
-from PyQt5.QtWidgets import QAction, QMessageBox, QInputDialog
+from PyQt5.QtGui import QIcon, QCursor
+from PyQt5.QtWidgets import QAction
 from qgis.core import *
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 
-# Need APSG
+# Need latest APSG
 import sys
 sys.path.insert(0, '/home/ondro/develrepo/apsg')
 from apsg import *
 
-# Import the code for the dialog
-from .readsdb_connect import ReadSDBConnectDialog
-from .readsdb_options import ReadSDBOptionsDialog
-from .readsdb_structures import ReadSDBStructuresDialog
-
-# read geomag
-from .geomag import geomag
 GM = geomag.GeoMag()
 
-structure_fields = {'name':QVariant.String,
-                    'unit':QVariant.String,
-                    'azi':QVariant.Double,
-                    'inc':QVariant.Double,
-                    'struct':QVariant.String,
-                    'tags':QVariant.String,
-                    'desc':QVariant.String,
-                    'planar':QVariant.Int,
-                    'rotate':QVariant.Double,
-                    'label':QVariant.String,
-                    'lbloff':QVariant.String
+structure_fields = {'name': QVariant.String,
+                    'unit': QVariant.String,
+                    'azi': QVariant.Double,
+                    'inc': QVariant.Double,
+                    'struct': QVariant.String,
+                    'tags': QVariant.String,
+                    'desc': QVariant.String,
+                    'planar': QVariant.Int,
+                    'rotate': QVariant.Double,
+                    'label': QVariant.String,
+                    'lbloff': QVariant.String
                     }
 
-site_fields = {'name':QVariant.String,
-               'unit':QVariant.String,
-               'description':QVariant.String
+site_fields = {'name': QVariant.String,
+               'unit': QVariant.String,
+               'description': QVariant.String
                }
 
 
@@ -115,12 +115,12 @@ class ReadSDB:
         # create toolbar
         self.toolbar = self.iface.addToolBar(u'ReadSDB')
         self.toolbar.setObjectName(u'ReadSDB')
-        
+
         # Create the dialogs (after translation) and keep reference
         self.connect_dlg = ReadSDBConnectDialog(self)
         self.options_dlg = ReadSDBOptionsDialog(self)
         self.structures_dlg = ReadSDBStructuresDialog(self)
-        
+
         # Store sites layer
         self.sites_layer = None
 
@@ -130,7 +130,7 @@ class ReadSDB:
             self.dbok = True
             for ac in self.actions[2:]:
                 ac.setEnabled(True)
-        except:
+        except (AssertionError, sqlite3.OperationalError):
             self.dbok = False
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
@@ -175,7 +175,7 @@ class ReadSDB:
 
     def calc_md(self, point=None, time=date.today()):
         """Calculate magnetic declination uising Christopher Weiss geomag library.
-        
+
         Adapted from the geomagc software and World Magnetic Model of the NOAA
         Satellite and Information Service, National Geophysical Data Center
         http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
@@ -187,21 +187,13 @@ class ReadSDB:
         if point is None:
             point = self.iface.mapCanvas().extent().center()
         point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
-        
+
         mag = GM.GeoMag(point_ll.y(), point_ll.x(), time=time)
         return mag.dec
 
-    def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+    def add_action(self, icon_path, text, callback,
+                   enabled_flag=True, add_to_menu=True, add_to_toolbar=True,
+                   status_tip=None, whats_this=None, parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -294,7 +286,7 @@ class ReadSDB:
             text=self.tr(u'Read structures from SDB'),
             callback=self.read_structures,
             parent=self.iface.mainWindow())
-        
+
         # Check database and set actions
         self.check_db()
 
@@ -311,7 +303,7 @@ class ReadSDB:
     def sanitize(self, text):
         rtext = ''
         if text is not None:
-            rtext = text.replace('\r\n',' ').replace('\n',' ')
+            rtext = text.replace('\r\n', ' ').replace('\n', ' ')
         return rtext
 
     def set_connection(self):
@@ -356,7 +348,7 @@ class ReadSDB:
 
     def read_sites(self):
         """Read sites from SDB database"""
-        if not self.sites_layer in QgsProject.instance().mapLayers().values():
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
             QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
 
             layer = self.create_layer('Sites', site_fields)
@@ -382,8 +374,7 @@ class ReadSDB:
             self.sites_layer = layer
 
             # recursively walk back the cursor to a pointer
-            while QgsApplication.instance().overrideCursor() is not None and \
-                QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
+            while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
             self.iface.messageBar().pushSuccess('SDB Read', '{} sites read successfully.'.format(ix + 1))
         else:
@@ -392,7 +383,7 @@ class ReadSDB:
     def read_structures(self):
         """Read structures from SDB"""
         # check selection in site layer
-        if not self.sites_layer in QgsProject.instance().mapLayers().values():
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
             selected_enable = False
         else:
             if self.sites_layer.selectedFeatureCount() > 0:
@@ -406,51 +397,55 @@ class ReadSDB:
         self.structures_dlg.comboStructure.addItems(self.sdb.structures())
         self.structures_dlg.comboUnit.clear()
         self.structures_dlg.comboUnit.addItems(['Any'] + self.sdb.units())
+        self.structures_dlg.checkAverage.setChecked(False)
         self.structures_dlg.checkSelected.setEnabled(selected_enable)
         self.structures_dlg.checkSelected.setChecked(selected_enable)
+        self.structures_dlg.listTags.clear()
+        self.structures_dlg.listTags.addItems(self.sdb.tags())
         # Run the dialog event loop
         result = self.structures_dlg.exec_()
         # See if OK was pressed
         if result:
             QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
-            
+
             layer_name = str(self.structures_dlg.comboStructure.currentText())
             if self.structures_dlg.checkAverage.isChecked():
                 layer_name += ' averaged'
-            
+
             layer = self.create_layer(layer_name, structure_fields)
             provider = layer.dataProvider()
             layer.startEditing()
-            
+
             # set db->project transform
             crsSrc = layer.crs()
             crsDst = QgsProject.instance().crs()
             xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
             # declination calculated for creation date of sdb database
             md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
-            
+
             struct = str(self.structures_dlg.comboStructure.currentText())
             is_planar = int(self.sdb.is_planar(struct))
             unit = str(self.structures_dlg.comboUnit.currentText())
             if unit == 'Any':
                 unit = None
-            
+            tags = [item.text() for item in self.structures_dlg.listTags.selectedItems()]
+
             # which sites
             if selected_enable and self.structures_dlg.checkSelected.isChecked():
                 sites = [f['name'] for f in self.sites_layer.selectedFeatures()]
             else:
-                sites = self.sdb.sites(structs=struct, units=unit)  # TODO tags
+                sites = self.sdb.sites(structs=struct, units=unit, tags=tags)
             # get scale for label offset (linear needs more)
             off_coef = 1 if self.sdb.is_planar(struct) else 2
-            
+
             # create features from data rows
             ix = 0
             for site in sites:
                 # do site select to get data
-                dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit))  # TODO tags
+                dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
                 if self.structures_dlg.checkAverage.isChecked() and len(dt) > 1:
-                    g = self.sdb.group(struct, sites=site, units=unit)  # TODO tags
+                    g = self.sdb.group(struct, sites=site, units=unit, tags=tags)
                     rec = dict(dt[0])
                     if is_planar:
                         azi, inc = g.ortensor.eigenfols[0].dd
@@ -473,29 +468,29 @@ class ReadSDB:
                     delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("gui/auto_md", type=bool) else self.settings.value("gui/angle_md", type=float)
                     rotation = rec['azimuth'] + delta
                     # calculate label offset
-                    offx =  off_coef * self.settings.value("gui/offset", type=int) * sin(rotation * pi/180.0)
-                    offy = -off_coef * self.settings.value("gui/offset", type=int) * cos(rotation * pi/180.0)
+                    offx = off_coef * self.settings.value("gui/offset", type=int) * sin(rotation * pi / 180.0)
+                    offy = -off_coef * self.settings.value("gui/offset", type=int) * cos(rotation * pi / 180.0)
                     atts = [ix, rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
                             rec['structure'], rec['tags'], self.sanitize(rec['description']),
-                            rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)
-                           ]
+                            rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)]
                     feature.setAttributes(atts)
                     provider.addFeatures([feature])
                     ix += 1
 
             layer.commitChanges()
-            # Style layer
-            if self.sdb.is_planar(struct):
-                layer.loadNamedStyle(self.res_path('styles/planar.qml'))
+            if ix > 0:
+                # Style layer
+                if self.sdb.is_planar(struct):
+                    layer.loadNamedStyle(self.res_path('styles/planar.qml'))
+                else:
+                    layer.loadNamedStyle(self.res_path('styles/linear.qml'))
+                layer.triggerRepaint()
+                # add to project
+                QgsProject.instance().addMapLayer(layer)
+                self.iface.messageBar().pushSuccess('SDB Read', '{} structures read successfully.'.format(ix))
             else:
-                layer.loadNamedStyle(self.res_path('styles/linear.qml'))
-            layer.triggerRepaint()
-            # add to project
-            QgsProject.instance().addMapLayer(layer)
-            self.iface.messageBar().pushSuccess('SDB Read', '{} structures read successfully.'.format(ix))
+                self.iface.messageBar().pushSuccess('SDB Read', 'No structures found. Choose different criteria.')
 
             # recursively walk back the cursor to a pointer
-            while QgsApplication.instance().overrideCursor() is not None and \
-                QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
+            while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
-                  

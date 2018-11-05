@@ -21,15 +21,12 @@
  *                                                                         *
  ***************************************************************************/
 """
-
 import os
 
 from PyQt5 import uic
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, QFileInfo, QDate
+from PyQt5.QtCore import Qt
 from qgis.core import *
-
-from apsg.db import SDB
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_options.ui'))
@@ -59,7 +56,7 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
             self.settings.setValue("gui/auto_md", bool(self.corr_md_auto.isChecked()))
             super(ReadSDBOptionsDialog, self).accept()
         except:
-            QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Check option values.'))    
+            QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Check option values.'))
 
     def calc_gc(self):
         """Calculate Grid convergence at map canvas centre"""
