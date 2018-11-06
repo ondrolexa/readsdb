@@ -32,6 +32,7 @@ from .geomag import geomag
 import os
 from datetime import date, datetime
 from math import cos, sin, pi
+from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
 from PyQt5.QtWidgets import QAction, QWidget,  QFormLayout
@@ -445,7 +446,7 @@ class ReadSDB:
                 md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
-            is_planar = int(self.sdb.is_planar(struct))
+            layer._is_planar = int(self.sdb.is_planar(struct))
             unit = str(self.structures_dlg.comboUnit.currentText())
             if unit == 'Any':
                 unit = None
@@ -457,7 +458,7 @@ class ReadSDB:
             else:
                 sites = self.sdb.sites(structs=struct, units=unit, tags=tags)
             # get scale for label offset (linear needs more)
-            off_coef = 1 if self.sdb.is_planar(struct) else 2
+            off_coef = 1 if layer.customProperty('SDB_planar') else 2
 
             # create features from data rows
             ix = 0
@@ -468,7 +469,7 @@ class ReadSDB:
                 if self.structures_dlg.checkAverage.isChecked() and len(dt) > 1:
                     g = self.sdb.group(struct, sites=site, units=unit, tags=tags)
                     rec = dict(dt[0])
-                    if is_planar:
+                    if layer._is_planar:
                         azi, inc = g.ortensor.eigenfols[0].dd
                     else:
                         azi, inc = g.ortensor.eigenlins[0].dd
@@ -501,7 +502,7 @@ class ReadSDB:
             layer.commitChanges()
             if ix > 0:
                 # Style layer
-                if self.sdb.is_planar(struct):
+                if layer._is_planar:
                     layer.loadNamedStyle(self.res_path('styles/planar.qml'))
                 else:
                     layer.loadNamedStyle(self.res_path('styles/linear.qml'))
@@ -520,18 +521,18 @@ class ReadSDB:
         """Select database and set plugin options"""
         layers = self.iface.layerTreeView().selectedLayers()
         self.plot_dlg.tabWidget.clear()
-        self.plot_dlg.data_list = []
-        self.plot_dlg.tabs = []
-        typ = {0: Lin, 1: Fol}
+        self.plot_dlg.data_layers = []
+        idx = 0
         for layer in layers:
-            fields = [f.name() for f in layer.fields()]
-            if set(['azi', 'inc', 'struct', 'planar']).issubset(fields):
-                features = layer.getFeatures()
-                data = [typ[f.attribute('planar')](f.attribute('azi'), f.attribute('inc')) for f in features]
-                self.plot_dlg.data_list.append(Group(data, layer.name()))
-                self.plot_dlg.tabs.append(QWidget())
-                self.plot_dlg.tabWidget.addTab(self.plot_dlg.tabs[-1], layer.name())
-        if self.plot_dlg.data_list:
+            if hasattr(layer, '_is_planar'):
+                self.plot_dlg.data_layers.append((idx, layer))
+                if layer._is_planar:
+                    w = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/widget_planar.ui'))
+                else:
+                    w = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/widget_linear.ui'))
+                self.plot_dlg.tabWidget.addTab(w, layer.name())
+                idx += 1
+        if idx > 0:
             # show the dialog
             self.plot_dlg.show()
             # prepare stereo net

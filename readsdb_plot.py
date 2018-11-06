@@ -37,7 +37,11 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-
+# qhull workaroud
+import platform
+qgis_qhull_fails = platform.platform().startswith('Linux')
+if qgis_qhull_fails:
+    from .stereogrid_workaround import StereoGrid as StereoGridQGIS
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_plot.ui'))
@@ -72,20 +76,65 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
-        self.data_list = []
-        self.tabs = []
-        self.tabsidx = []
+        self.pushApply.clicked.connect(self.plotnet)
+        self.data_layers = []
         self.canvas = MyMplCanvas(self)
         self.toolbar = NavigationToolbar(self.canvas, self)
         self.mplLayout.addWidget(self.canvas)
         self.mplLayout.addWidget(self.toolbar)
         self.net = self.canvas.net
 
+    def opt(self, index, type, name):
+        return self.tabWidget.widget(index).findChild(type, name)
+
     def plotnet(self):
         self.net.cla()
-        for g in self.data_list:
-            if g.type is Fol:
-                self.net.plane(g)
+        for idx, layer in self.data_layers[::-1]:  # plot in right order
+            features = layer.getFeatures()
+            # Create data Group
+            if layer._is_planar:
+                g = Group([Fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
             else:
-                self.net.line(g)
+                g = Group([Lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+            # contours
+            if self.opt(idx, QtWidgets.QCheckBox, 'checkContours').isChecked():
+                if qgis_qhull_fails:
+                    kwargs = {'cmap': 'Greys', 'zorder': 1}
+                    nlevels = 6
+                    d = StereoGridQGIS(g)
+                    mn = d.values.min()
+                    mx = d.values.max()
+                    levels = np.linspace(mn, mx, nlevels)
+                    levels[-1] += 1e-8
+                    legend = True
+                if self.opt(idx, QtWidgets.QCheckBox, 'checkContoursFilled').isChecked():
+                    if qgis_qhull_fails:
+                        cs = self.net.fig.axes[self.net.active].tricontourf(d.triang, d.values, levels, **kwargs)
+                        self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, colors="k")
+                    else:
+                        self.net.contourf(StereoGrid(g))
+                else:
+                    if qgis_qhull_fails:
+                        cs = self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, **kwargs)
+                    else:
+                        self.net.contour(StereoGrid(g))
+                if qgis_qhull_fails:
+                    if legend:
+                        ab = self.net.fig.axes[self.net.active].get_position().bounds
+                        cbaxes = self.net.fig.add_axes([0.1, ab[1] + 0.1 * ab[3], 0.03, 0.8 * ab[3]])
+                        self.net.fig.colorbar(cs, cax=cbaxes)
+            # principal
+            eigf = self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked()
+            eigl = self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked()
+            self.net.tensor(g.ortensor, eigenfols=eigf, eigenlins=eigl)
+            # plot data
+            if layer._is_planar:
+                if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
+                    if self.opt(idx, QtWidgets.QCheckBox, 'checkAsPoles').isChecked():
+                        self.net.pole(g)
+                    else:
+                        self.net.plane(g)
+            else:
+                if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
+                    self.net.line(g)
         self.canvas.draw()
