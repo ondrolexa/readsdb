@@ -88,6 +88,7 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
         return self.tabWidget.widget(index).findChild(type, name)
 
     def plotnet(self):
+        self.net.grid = self.checkGrid.isChecked()
         self.net.cla()
         for idx, layer in self.data_layers[::-1]:  # plot in right order
             features = layer.getFeatures()
@@ -96,12 +97,14 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
                 g = Group([Fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
             else:
                 g = Group([Lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+            label = repr(g) if self.checkLabels.isChecked() else None
             # contours
             if self.opt(idx, QtWidgets.QCheckBox, 'checkContours').isChecked():
+                nlevels = self.opt(idx, QtWidgets.QSpinBox, 'spinLevels').value()
+                sigma = self.opt(idx, QtWidgets.QDoubleSpinBox, 'spinSigma').value()
                 if qgis_qhull_fails:
                     kwargs = {'cmap': 'Greys', 'zorder': 1}
-                    nlevels = 6
-                    d = StereoGridQGIS(g)
+                    d = StereoGridQGIS(g, sigma=sigma)
                     mn = d.values.min()
                     mx = d.values.max()
                     levels = np.linspace(mn, mx, nlevels)
@@ -112,29 +115,33 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
                         cs = self.net.fig.axes[self.net.active].tricontourf(d.triang, d.values, levels, **kwargs)
                         self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, colors="k")
                     else:
-                        self.net.contourf(StereoGrid(g))
+                        self.net.contourf(StereoGrid(g), levels=nlevels, sigma=sigma)
                 else:
                     if qgis_qhull_fails:
                         cs = self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, **kwargs)
                     else:
-                        self.net.contour(StereoGrid(g))
+                        self.net.contour(StereoGrid(g), levels=nlevels, sigma=sigma)
                 if qgis_qhull_fails:
                     if legend:
                         ab = self.net.fig.axes[self.net.active].get_position().bounds
                         cbaxes = self.net.fig.add_axes([0.1, ab[1] + 0.1 * ab[3], 0.03, 0.8 * ab[3]])
-                        self.net.fig.colorbar(cs, cax=cbaxes)
+                        cb = self.net.fig.colorbar(cs, cax=cbaxes)
+                        if label:
+                            cb.ax.set_title(label)
             # principal
             eigf = self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked()
             eigl = self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked()
             self.net.tensor(g.ortensor, eigenfols=eigf, eigenlins=eigl)
             # plot data
+            markersize = self.opt(idx, QtWidgets.QSpinBox, 'spinSize').value()
+            marker = self.opt(idx, QtWidgets.QComboBox, 'comboStyle').currentText()
             if layer._is_planar:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
                     if self.opt(idx, QtWidgets.QCheckBox, 'checkAsPoles').isChecked():
-                        self.net.pole(g)
+                        self.net.pole(g, marker=marker, markersize=markersize, label=label)
                     else:
-                        self.net.plane(g)
+                        self.net.plane(g, label=label)
             else:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
-                    self.net.line(g)
+                    self.net.line(g, marker=marker, markersize=markersize, label=label)
         self.canvas.draw()
