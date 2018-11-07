@@ -51,7 +51,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.readsdb = readsdb
         self.settings = self.readsdb.settings
 
-        self.sdbinfo(self.settings.value("gui/sdbname", type=str))
+        self.sdbinfo(self.settings.value("sdbname", type=str))
 
     def sdbinfo(self, filename):
         """Populate dialog with current values"""
@@ -72,7 +72,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def accept(self):
         if self.dbok:
-            self.settings.setValue("gui/sdbname", self.sdbname.text())
+            self.settings.setValue("sdbname", self.sdbname.text())
             super(ReadSDBConnectDialog, self).accept()
         else:
             QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Please specify correct SDB database'))

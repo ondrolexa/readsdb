@@ -32,14 +32,18 @@ from .geomag import geomag
 import os
 from datetime import date, datetime
 from math import cos, sin, pi
+from pathlib import Path
+import sqlite3
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
-from PyQt5.QtWidgets import QAction, QWidget,  QFormLayout
+from PyQt5.QtWidgets import QAction
 from qgis.core import *
 
 # Initialize Qt resources from file resources.py
 from .resources import *
+
+from .pysdb.mainapp import PySDBWindow
 
 # Need latest APSG
 import sys
@@ -102,19 +106,19 @@ class ReadSDB:
                 QCoreApplication.installTranslator(self.translator)
 
         # Get the params from last session.
-        self.settings = QSettings("readsdb")
-        if self.settings.value("gui/offset") is None:
-            self.settings.setValue("gui/offset", 0)
-        if self.settings.value("gui/angle_gc") is None:
-            self.settings.setValue("gui/angle_gc", 0)
-        if self.settings.value("gui/angle_md") is None:
-            self.settings.setValue("gui/angle_md", 0)
-        if self.settings.value("gui/sdbname") is None:
-            self.settings.setValue("gui/sdbname", "")
-        if self.settings.value("gui/auto_gc") is None:
-            self.settings.setValue("gui/auto_gc", True)
-        if self.settings.value("gui/auto_md") is None:
-            self.settings.setValue("gui/auto_md", True)
+        self.settings = QSettings('LX', 'readsdb')
+        if self.settings.value("offset") is None:
+            self.settings.setValue("offset", 0)
+        if self.settings.value("angle_gc") is None:
+            self.settings.setValue("angle_gc", 0)
+        if self.settings.value("angle_md") is None:
+            self.settings.setValue("angle_md", 0)
+        if self.settings.value("sdbname") is None:
+            self.settings.setValue("sdbname", "")
+        if self.settings.value("auto_gc") is None:
+            self.settings.setValue("auto_gc", True)
+        if self.settings.value("auto_md") is None:
+            self.settings.setValue("auto_md", True)
 
         # Declare instance attributes
         self.actions = []
@@ -134,7 +138,7 @@ class ReadSDB:
 
     def check_db(self):
         try:
-            self.sdb = SDB(self.settings.value("gui/sdbname", type=str))
+            self.sdb = SDB(self.settings.value("sdbname", type=str))
             self.dbok = True
             for ac in self.actions[2:]:
                 ac.setEnabled(True)
@@ -270,8 +274,8 @@ class ReadSDB:
         icon_path = ':/plugins/readsdb/icons/icon_sdb.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Select SDB database'),
-            callback=self.set_connection,
+            text=self.tr(u'Open SDB manager'),
+            callback=self.pysdb_manager,
             parent=self.iface.mainWindow())
 
         icon_path = ':/plugins/readsdb/icons/icon_opt.png'
@@ -326,24 +330,34 @@ class ReadSDB:
         # show the dialog
         self.connect_dlg.show()
         # populate dialog
-        if self.settings.value("gui/sdbname", type=str):
-            self.connect_dlg.sdbinfo(self.settings.value("gui/sdbname", type=str))
+        if self.settings.value("sdbname", type=str):
+            self.connect_dlg.sdbinfo(self.settings.value("sdbname", type=str))
         # Run the dialog event loop
         result = self.connect_dlg.exec_()
         # See if OK was pressed
         if result:
             self.check_db()
 
+    def pysdb_manager(self):
+        """Run PySDB manager"""
+        window = PySDBWindow()
+        window.readsdb = self
+        p = Path(self.settings.value("sdbname", type=str))
+        if not p.is_file():
+            p = None
+        window.openFileSDB(False, p)
+        window.show()
+
     def set_options(self):
         """Select database and set plugin options"""
         # show the dialog
         self.options_dlg.show()
         # populate dialog
-        self.options_dlg.angle_gc.setText(self.settings.value("gui/angle_gc", type=str))
-        self.options_dlg.angle_md.setText(self.settings.value("gui/angle_md", type=str))
-        self.options_dlg.offset.setText(self.settings.value("gui/offset", type=str))
-        self.options_dlg.corr_gc_auto.setChecked(self.settings.value("gui/auto_gc", type=bool))
-        self.options_dlg.corr_md_auto.setChecked(self.settings.value("gui/auto_md", type=bool))
+        self.options_dlg.angle_gc.setText(self.settings.value("angle_gc", type=str))
+        self.options_dlg.angle_md.setText(self.settings.value("angle_md", type=str))
+        self.options_dlg.offset.setText(self.settings.value("offset", type=str))
+        self.options_dlg.corr_gc_auto.setChecked(self.settings.value("auto_gc", type=bool))
+        self.options_dlg.corr_md_auto.setChecked(self.settings.value("auto_md", type=bool))
         # set magnetic declination calendar
         try:
             md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
@@ -395,7 +409,10 @@ class ReadSDB:
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
-            self.iface.messageBar().pushSuccess('SDB Read', '{} sites read successfully.'.format(ix + 1))
+            if layer.featureCount() > 0:
+                self.iface.messageBar().pushSuccess('SDB Read', '{} sites read successfully.'.format(layer.featureCount()))
+            else:
+                self.iface.messageBar().pushWarning('SDB Read', 'There are no sites in database.')
         else:
             self.iface.messageBar().pushWarning('SDB Read', 'Sites layer already exists.')
 
@@ -486,12 +503,12 @@ class ReadSDB:
                     # do possible azimuth corrections in canvas crs
                     point_canvas = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
                     delta = 0
-                    delta += self.calc_gc(point=point_canvas) if self.settings.value("gui/auto_gc", type=bool) else self.settings.value("gui/angle_gc", type=float)
-                    delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("gui/auto_md", type=bool) else self.settings.value("gui/angle_md", type=float)
+                    delta += self.calc_gc(point=point_canvas) if self.settings.value("auto_gc", type=bool) else self.settings.value("angle_gc", type=float)
+                    delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("auto_md", type=bool) else self.settings.value("angle_md", type=float)
                     rotation = rec['azimuth'] + delta
                     # calculate label offset
-                    offx = off_coef * self.settings.value("gui/offset", type=int) * sin(rotation * pi / 180.0)
-                    offy = -off_coef * self.settings.value("gui/offset", type=int) * cos(rotation * pi / 180.0)
+                    offx = off_coef * self.settings.value("offset", type=int) * sin(rotation * pi / 180.0)
+                    offy = -off_coef * self.settings.value("offset", type=int) * cos(rotation * pi / 180.0)
                     atts = [ix, rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
                             rec['structure'], rec['tags'], self.sanitize(rec['description']),
                             rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)]
