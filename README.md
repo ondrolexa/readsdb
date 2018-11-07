@@ -9,7 +9,7 @@ The plugin cosists of following functionalities:
 3) Contains basic set of svg symbols used by structural geologists.
 4) Plot selected data on Stereonet using [APSG](https://github.com/ondrolexa/apsg) python package for structural geologists.
 
-Installation instructions and further funcionalities are under active developement.
+**Install instructions and further funcionalities are under active developement.**
 
 #### Dependency requirements
 
