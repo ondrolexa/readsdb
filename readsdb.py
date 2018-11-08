@@ -325,19 +325,6 @@ class ReadSDB:
             rtext = text.replace('\r\n', ' ').replace('\n', ' ')
         return rtext
 
-    def set_connection(self):
-        """Select database and set plugin options"""
-        # show the dialog
-        self.connect_dlg.show()
-        # populate dialog
-        if self.settings.value("sdbname", type=str):
-            self.connect_dlg.sdbinfo(self.settings.value("sdbname", type=str))
-        # Run the dialog event loop
-        result = self.connect_dlg.exec_()
-        # See if OK was pressed
-        if result:
-            self.check_db()
-
     def pysdb_manager(self):
         """Run PySDB manager"""
         window = PySDBWindow()

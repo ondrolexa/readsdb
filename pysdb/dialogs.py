@@ -1,18 +1,26 @@
+import sys
+import os
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import uic
+
+from qgis.gui import (QgsFieldComboBox, QgsMapLayerComboBox)
+from qgis.core import QgsMapLayerProxyModel
 
 from .models import *
 
-from .ui_pysdb3 import Ui_MainWindow
-from .ui_addeditdata import Ui_DialogAddEditData
-from .ui_addeditsite import Ui_DialogAddEditSite
-from .ui_addeditstructure import Ui_DialogAddEditStructure
-from .ui_addedittag import Ui_DialogAddEditTag
-from .ui_addeditunit import Ui_DialogAddEditUnit
-from .ui_savediscard import Ui_SaveDiscardDialog
-from .ui_datafilter import Ui_DataFilterDialog
-from .ui_sitefilter import Ui_SiteFilterDialog
-from .ui_sdbinfo import Ui_DialogSDBInfo
-from .ui_imageview import Ui_DialogImageView
+# uic bug fix
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+Ui_DialogAddEditData, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/addeditdata.ui'))
+Ui_DialogAddEditSite, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/addeditsite.ui'))
+Ui_DialogAddEditStructure, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/addeditstructure.ui'))
+Ui_DialogAddEditTag, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/addedittag.ui'))
+Ui_DialogAddEditUnit, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/addeditunit.ui'))
+Ui_SaveDiscardDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/savediscard.ui'))
+Ui_DataFilterDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/datafilter.ui'))
+Ui_SiteFilterDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/sitefilter.ui'))
+Ui_DialogSDBInfo, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/sdbinfo.ui'))
+Ui_ImportLayerDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/importlayer.ui'))
 
 class DialogAddEditSite(QtWidgets.QDialog):
     def __init__(self, model, action, data=[-1,'',0.0,0.0,'',None], parent=None):
@@ -365,22 +373,44 @@ class DialogDataFilter(QtWidgets.QDialog):
         QtWidgets.QDialog.accept(self)
 
 
-class DialogImageView(QtWidgets.QDialog):
-    def __init__(self, path, parent=None):
-        super(DialogImageView, self).__init__(parent)
-        self.ui = Ui_DialogImageView()
-        self.ui.setupUi(self)
-        self.setWindowTitle(path.name)
-        self.pixmap = QtGui.QPixmap(str(path))
+class ImportLayerDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super(ImportLayerDialog, self).__init__(parent)
 
-    def paintEvent(self, event):
-        size = self.size()
-        scaledPix = self.pixmap.scaled(size, QtCore.Qt.KeepAspectRatio, transformMode = QtCore.Qt.SmoothTransformation)
-        #self.setMaximumSize(scaledPix.size())
-        # self.setMaximumSize(QtCore.QSize(4000,5000))
-        # label.setPixmap(pixmap.scaled(640, 480, QtCore.Qt.KeepAspectRatio))
-        self.ui.imageLabel.setPixmap(scaledPix)
-        #self.ui.imageLabel.adjustSize()
+        self.ui = Ui_ImportLayerDialog()
+        self.ui.setupUi(self)
+        # set unit combo
+        self.layerCombo = QgsMapLayerComboBox()
+        self.layerCombo.setFilters(QgsMapLayerProxyModel.PointLayer)
+        self.ui.horizontalLayoutLayer.addWidget(self.layerCombo)
+        self.siteCombo = QgsFieldComboBox()
+        self.siteCombo.setAllowEmptyFieldName(False)
+        self.ui.verticalLayoutRequired.addWidget(self.siteCombo)
+        self.unitCombo = QgsFieldComboBox()
+        self.unitCombo.setAllowEmptyFieldName(True)
+        self.ui.verticalLayoutOtional.addWidget(self.unitCombo)
+        self.descCombo = QgsFieldComboBox()
+        self.descCombo.setAllowEmptyFieldName(True)
+        self.ui.verticalLayoutOtional.addWidget(self.descCombo)
+
+        self.layerCombo.layerChanged.connect(self.layer_changed)
+
+    def layer_changed(self,index):
+        layer = self.layerCombo.currentLayer()
+        self.siteCombo.setLayer(layer)
+        self.unitCombo.setLayer(layer)
+        self.descCombo.setLayer(layer)
 
     def accept(self):
-        QtWidgets.QDialog.accept(self)
+        # add site accept check
+        if self.ui.sitenameEdit.text():
+            self.data[sitecol['name']] = self.ui.sitenameEdit.text()
+            self.data[sitecol['x']] = float(self.ui.xcoordEdit.text())
+            self.data[sitecol['y']] = float(self.ui.ycoordEdit.text())
+            self.data[sitecol['desc']] = self.ui.descriptionEdit.toPlainText()
+            self.data[sitecol['id_units']] = self.ui.unitCombo.model().row2id[self.ui.unitCombo.currentIndex()]
+            QtWidgets.QDialog.accept(self)
+        else:
+            QtGui.QMessageBox.warning(self, 'Add site error', 'Sitename cannot be empty!')
+            self.ui.sitenameEdit.setFocus()
+            return

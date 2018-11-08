@@ -7,9 +7,16 @@ from pathlib import Path
 from lxml import etree
 
 from PyQt5 import QtCore, QtWidgets
+from PyQt5 import uic
 
 from .models import *
 from .dialogs import *
+from .pysdb3_rc import *
+
+# uic bug fix
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+Ui_MainWindow, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/pysdb3.ui'))
 
 __version__ = '3.0.5'
 __about__ = """<b>PySDB - structural database manager v.{}</b>
@@ -61,8 +68,7 @@ class PySDBWindow(QtWidgets.QMainWindow):
         self.ui.actionSave.triggered.connect(lambda: self.check_action(self.saveFileSDB))
         self.ui.actionSave_as.triggered.connect(lambda: self.check_action(self.saveAsSDB))
         self.ui.actionQuit.triggered.connect(self.close)
-        self.ui.actionFrom_GPX.triggered.connect(lambda: self.check_action(self.importSitesFromGPX))
-        self.ui.actionFrom_CSV.triggered.connect(lambda: self.check_action(self.importSitesFromCSV))
+        self.ui.actionImport_from_layer.triggered.connect(lambda: self.check_action(self.importSitesLayer))
         # siteview
         self.ui.pushSiteAdd.clicked.connect(lambda: self.check_action(self.addSiteDlg))
         self.ui.pushSiteEdit.clicked.connect(lambda: self.check_action(self.editSiteDlg))
@@ -215,7 +221,11 @@ class PySDBWindow(QtWidgets.QMainWindow):
             self.changed = False
             self.addtorecent(p)
 
-    def importSitesFromGPX(self):
+    def importSitesLayer(self):
+        dlg = ImportLayerDialog()
+        dlg.exec_()
+
+    def oldmethod(self):
         file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open GPX file', str(self.lastdir), 'GPX file (*.gpx);;All Files (*)')
         fname = Path(file)
         if fname.is_file():
@@ -230,9 +240,6 @@ class PySDBWindow(QtWidgets.QMainWindow):
                               '',                                             # description
                               1))                                             # id_units
             self.importSites(sites)
-
-    def importSitesFromCSV(self):
-        pass
 
     def importSites(self, data):
         for rec in data:
