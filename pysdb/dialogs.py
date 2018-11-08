@@ -4,7 +4,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
 from qgis.gui import (QgsFieldComboBox, QgsMapLayerComboBox)
-from qgis.core import QgsMapLayerProxyModel
+from qgis.core import QgsMapLayerProxyModel, QgsFieldProxyModel, QgsProject
 
 from .models import *
 
@@ -374,43 +374,56 @@ class DialogDataFilter(QtWidgets.QDialog):
 
 
 class ImportLayerDialog(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, readsdb, parent=None):
         super(ImportLayerDialog, self).__init__(parent)
 
         self.ui = Ui_ImportLayerDialog()
         self.ui.setupUi(self)
         # set unit combo
         self.layerCombo = QgsMapLayerComboBox()
+        if readsdb.sites_layer in QgsProject.instance().mapLayers().values():
+            self.layerCombo.setLayer(readsdb.sites_layer)
         self.layerCombo.setFilters(QgsMapLayerProxyModel.PointLayer)
         self.ui.horizontalLayoutLayer.addWidget(self.layerCombo)
         self.siteCombo = QgsFieldComboBox()
+        self.siteCombo.setFilters(QgsFieldProxyModel.String)
         self.siteCombo.setAllowEmptyFieldName(False)
         self.ui.verticalLayoutRequired.addWidget(self.siteCombo)
         self.unitCombo = QgsFieldComboBox()
+        self.unitCombo.setFilters(QgsFieldProxyModel.String)
         self.unitCombo.setAllowEmptyFieldName(True)
         self.ui.verticalLayoutOtional.addWidget(self.unitCombo)
         self.descCombo = QgsFieldComboBox()
+        self.descCombo.setFilters(QgsFieldProxyModel.String)
         self.descCombo.setAllowEmptyFieldName(True)
         self.ui.verticalLayoutOtional.addWidget(self.descCombo)
-
+        self.layer_changed()
         self.layerCombo.layerChanged.connect(self.layer_changed)
 
-    def layer_changed(self,index):
+    def layer_changed(self):
         layer = self.layerCombo.currentLayer()
         self.siteCombo.setLayer(layer)
+        self.siteCombo.setField('name')
         self.unitCombo.setLayer(layer)
+        self.unitCombo.setField('unit')
         self.descCombo.setLayer(layer)
+        self.descCombo.setField('description')
 
     def accept(self):
-        # add site accept check
-        if self.ui.sitenameEdit.text():
-            self.data[sitecol['name']] = self.ui.sitenameEdit.text()
-            self.data[sitecol['x']] = float(self.ui.xcoordEdit.text())
-            self.data[sitecol['y']] = float(self.ui.ycoordEdit.text())
-            self.data[sitecol['desc']] = self.ui.descriptionEdit.toPlainText()
-            self.data[sitecol['id_units']] = self.ui.unitCombo.model().row2id[self.ui.unitCombo.currentIndex()]
-            QtWidgets.QDialog.accept(self)
+        layer = self.layerCombo.currentLayer()
+        if layer in not None:
+            if self.siteCombo.currentField() != '':
+                if self.ui.checkBoxUpdate.isChecked():
+                    # update
+                    pass
+                else:
+                    # import
+                    pass
+                # do import update
+                QtWidgets.QDialog.accept(self)
+            else:
+                QtWidgets.QMessageBox.warning(self, 'Import from layer', 'Site name cannot be empty!')
+                return
         else:
-            QtGui.QMessageBox.warning(self, 'Add site error', 'Sitename cannot be empty!')
-            self.ui.sitenameEdit.setFocus()
+            QtWidgets.QMessageBox.warning(self, 'Import from layer', 'Layer cannot be empty!')
             return

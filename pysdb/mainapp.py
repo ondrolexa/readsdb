@@ -222,7 +222,7 @@ class PySDBWindow(QtWidgets.QMainWindow):
             self.addtorecent(p)
 
     def importSitesLayer(self):
-        dlg = ImportLayerDialog()
+        dlg = ImportLayerDialog(self.readsdb)
         dlg.exec_()
 
     def oldmethod(self):

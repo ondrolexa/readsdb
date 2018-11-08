@@ -88,7 +88,17 @@
    <item>
     <widget class="QCheckBox" name="checkBoxUpdate">
      <property name="text">
-      <string>Only update existing sites</string>
+      <string>Update existing sites</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="checkBoxImportNew">
+     <property name="text">
+      <string>Only import new sites</string>
      </property>
     </widget>
    </item>

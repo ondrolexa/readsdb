@@ -108,7 +108,7 @@ class ReadSDB:
         # Get the params from last session.
         self.settings = QSettings('LX', 'readsdb')
         if self.settings.value("offset") is None:
-            self.settings.setValue("offset", 0)
+            self.settings.setValue("offset", 1.5)
         if self.settings.value("angle_gc") is None:
             self.settings.setValue("angle_gc", 0)
         if self.settings.value("angle_md") is None:
@@ -360,7 +360,6 @@ class ReadSDB:
         proj = self.sdb.meta('crs')
         crs.createFromUserInput(proj)
         lyr_fields = QgsFields()
-        lyr_fields.append(QgsField('id', QVariant.Int))
         for key in fields:
             lyr_fields.append(QgsField(key, fields[key]))
         layer = QgsMemoryProviderUtils.createMemoryLayer(name, lyr_fields, QgsWkbTypes.Point, crs)
@@ -374,11 +373,10 @@ class ReadSDB:
             layer = self.create_layer('Sites', site_fields)
             provider = layer.dataProvider()
             layer.startEditing()
-            for ix, rec in enumerate(self.sdb.execsql(SDB._SITE_SELECT)):
+            for rec in self.sdb.execsql(SDB._SITE_SELECT):
                 feature = QgsFeature()
                 feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(rec['x'], rec['y'])))
-                feature.setAttributes([ix,
-                                       rec['name'],
+                feature.setAttributes([rec['name'],
                                        rec['unit'],
                                        self.sanitize(rec['description'])
                                        ])
@@ -462,10 +460,9 @@ class ReadSDB:
             else:
                 sites = self.sdb.sites(structs=struct, units=unit, tags=tags)
             # get scale for label offset (linear needs more)
-            off_coef = 1 if layer.customProperty('SDB_planar') else 2
+            off_coef = 1.0 if layer.customProperty('SDB_planar') else 4.5
 
             # create features from data rows
-            ix = 0
             for site in sites:
                 # do site select to get data
                 dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit, tags=tags))
@@ -494,17 +491,16 @@ class ReadSDB:
                     delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("auto_md", type=bool) else self.settings.value("angle_md", type=float)
                     rotation = rec['azimuth'] + delta
                     # calculate label offset
-                    offx = off_coef * self.settings.value("offset", type=int) * sin(rotation * pi / 180.0)
-                    offy = -off_coef * self.settings.value("offset", type=int) * cos(rotation * pi / 180.0)
-                    atts = [ix, rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
+                    offx = off_coef * self.settings.value("offset", type=float) * sin(rotation * pi / 180.0)
+                    offy = -off_coef * self.settings.value("offset", type=float) * cos(rotation * pi / 180.0)
+                    atts = [rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
                             rec['structure'], rec['tags'], self.sanitize(rec['description']),
                             rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)]
                     feature.setAttributes(atts)
                     provider.addFeatures([feature])
-                    ix += 1
 
             layer.commitChanges()
-            if ix > 0:
+            if layer.featureCount() > 0:
                 # Style layer
                 if layer._is_planar:
                     layer.loadNamedStyle(self.res_path('styles/planar.qml'))
@@ -513,7 +509,7 @@ class ReadSDB:
                 layer.triggerRepaint()
                 # add to project
                 QgsProject.instance().addMapLayer(layer)
-                self.iface.messageBar().pushSuccess('SDB Read', '{} structures read successfully.'.format(ix))
+                self.iface.messageBar().pushSuccess('SDB Read', '{} structures read successfully.'.format(layer.featureCount()))
             else:
                 self.iface.messageBar().pushSuccess('SDB Read', 'No structures found. Choose different criteria.')
 
