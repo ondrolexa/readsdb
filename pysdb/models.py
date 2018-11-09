@@ -43,7 +43,7 @@ class SiteModel(QtCore.QAbstractTableModel):
         self._items = mlist
         # Create lookup dictionaries
         self.updateIndex()
-    
+
     def updateIndex(self):
         """ Update lookup dictionaries for id and row. """
         self.id2row = {}
@@ -61,8 +61,8 @@ class SiteModel(QtCore.QAbstractTableModel):
         return len(sitecol)
 
     def data(self, index, role = QtCore.Qt.DisplayRole):
-        """ Depending on the index and role given, return data. If not 
-            returning data, return None (PySide equivalent of QT's 
+        """ Depending on the index and role given, return data. If not
+            returning data, return None (PySide equivalent of QT's
             "invalid QVariant").
         """
         if not index.isValid():
@@ -126,12 +126,12 @@ class StructureModel(QtCore.QAbstractTableModel):
         self._items = mlist
         # Create lookup dictionaries
         self.updateIndex()
-    
+
     def updateIndex(self):
         """ Update lookup dictionaries for id and row. """
         self.id2row = {}
         self.row2id = {}
-        for idx,row in enumerate(self._items):
+        for idx, row in enumerate(self._items):
             self.id2row[row[0]] = idx
             self.row2id[idx] = row[0]
 
@@ -143,9 +143,9 @@ class StructureModel(QtCore.QAbstractTableModel):
         """ Returns the number of columns the model holds. """
         return len(structurecol)
 
-    def data(self, index, role = QtCore.Qt.DisplayRole):
-        """ Depending on the index and role given, return data. If not 
-            returning data, return None (PySide equivalent of QT's 
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        """ Depending on the index and role given, return data. If not
+            returning data, return None (PySide equivalent of QT's
             "invalid QVariant").
         """
         if not index.isValid():
@@ -201,7 +201,7 @@ class UnitModel(QtCore.QAbstractTableModel):
         self._items = mlist
         # Create lookup dictionaries
         self.updateIndex()
-    
+
     def updateIndex(self):
         """ Update lookup dictionaries for id and row. """
         self.id2row = {}
@@ -209,26 +209,26 @@ class UnitModel(QtCore.QAbstractTableModel):
         for idx,row in enumerate(self._items):
             self.id2row[row[0]] = idx
             self.row2id[idx] = row[0]
-    
+
     def rowCount(self, index=QtCore.QModelIndex()):
         """ Returns the number of rows the model holds. """
         return len(self._items)
-    
+
     def columnCount(self, index=QtCore.QModelIndex()):
         """ Returns the number of columns the model holds. """
         return len(unitcol)
-    
+
     def data(self, index, role = QtCore.Qt.DisplayRole):
-        """ Depending on the index and role given, return data. If not 
-            returning data, return None (PySide equivalent of QT's 
+        """ Depending on the index and role given, return data. If not
+            returning data, return None (PySide equivalent of QT's
             "invalid QVariant").
         """
         if not index.isValid():
             return None
-        
+
         if not 0 <= index.row() < len(self._items):
             return None
-        
+
         if role == QtCore.Qt.DisplayRole:
             # The view is asking for the actual data, so, just return the item it's asking for.
             return self._items[index.row()][index.column()]
@@ -273,7 +273,7 @@ class TagModel(QtCore.QAbstractTableModel):
         self._items = mlist
         # Create lookup dictionaries
         self.updateIndex()
-    
+
     def updateIndex(self):
         """ Update lookup dictionaries for id and row. """
         self.id2row = {}
@@ -291,8 +291,8 @@ class TagModel(QtCore.QAbstractTableModel):
         return len(tagcol)
 
     def data(self, index, role = QtCore.Qt.DisplayRole):
-        """ Depending on the index and role given, return data. If not 
-            returning data, return None (PySide equivalent of QT's 
+        """ Depending on the index and role given, return data. If not
+            returning data, return None (PySide equivalent of QT's
             "invalid QVariant").
         """
         if not index.isValid():
@@ -349,7 +349,7 @@ class TagModel(QtCore.QAbstractTableModel):
                 row[tagcol['check']] = QtCore.Qt.Checked
             else:
                 row[tagcol['check']] = QtCore.Qt.Unchecked
-    
+
     def getRow(self, index):
         """ Returns model row. """
         return self._items[index.row()]
@@ -387,7 +387,7 @@ class DataModel(QtCore.QAbstractTableModel):
         self._items = mlist
         # Create lookup dictionaries
         self.updateIndex()
-    
+
     def updateIndex(self):
         """ Update lookup dictionaries for id and row. """
         self.id2row = {}
@@ -405,8 +405,8 @@ class DataModel(QtCore.QAbstractTableModel):
         return len(datacol)
 
     def data(self, index, role = QtCore.Qt.DisplayRole):
-        """ Depending on the index and role given, return data. If not 
-            returning data, return None (PySide equivalent of QT's 
+        """ Depending on the index and role given, return data. If not
+            returning data, return None (PySide equivalent of QT's
             "invalid QVariant").
         """
         if not index.isValid():

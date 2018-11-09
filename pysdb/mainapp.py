@@ -13,6 +13,8 @@ from .models import *
 from .dialogs import *
 from .pysdb3_rc import *
 
+from qgis.core import QgsMessageLog
+
 # uic bug fix
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 
@@ -223,7 +225,43 @@ class PySDBWindow(QtWidgets.QMainWindow):
 
     def importSitesLayer(self):
         dlg = ImportLayerDialog(self.readsdb)
-        dlg.exec_()
+        result = dlg.exec_()
+        if result:
+            layer = dlg.layerCombo.currentLayer()
+            features = layer.getFeatures()
+            for feature in features:
+                pt = feature.geometry().asPoint()
+                site_field = dlg.siteCombo.currentField()
+                unit_field = dlg.unitCombo.currentField()
+                desc_field = dlg.descCombo.currentField()
+                sel = self.conn.execute("SELECT * FROM sites WHERE name=?", (feature[site_field],)).fetchall()
+                if sel:
+                    if dlg.ui.checkBoxUpdate.isChecked():
+                        data = sel[0][0]
+                        data[sitecol['x']] = pt.x()
+                        data[sitecol['y']] = pt.y()
+                        if desc_field != '':
+                            data[sitecol['desc']] = self.readsdb.sanitize(str(feature[desc_field]))
+                        if unit_field != '':
+                            unit = [-1, feature[unit_field], '']
+                            cur = self.db_addUnit(unit)
+                            if cur.rowcount > 0:
+                                data[sitecol['id_units']] = cur.lastrowid
+                        self.db_updateSite(data)
+                else:
+                    data = [feature[site_field], pt.x(), pt.y(), '', 1]
+                    if desc_field != '':
+                        data[-2] = self.readsdb.sanitize(str(feature[desc_field]))
+                    if unit_field != '':
+                        sel = self.conn.execute("SELECT id FROM units WHERE name=?", (feature[unit_field],)).fetchall()
+                        if sel:
+                            data[-1] = sel[0][0]
+                        else:
+                            unit = [-1, feature[unit_field], '']
+                            cur = self.db_addUnit(unit)
+                            data[-1] = cur.lastrowid
+                    self.db_addSite(data)
+            self.rereadDatabase()
 
     def oldmethod(self):
         file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open GPX file', str(self.lastdir), 'GPX file (*.gpx);;All Files (*)')
@@ -466,119 +504,122 @@ class PySDBWindow(QtWidgets.QMainWindow):
                 self.conn.commit()
         return ok
 
-    def connectDatabase(self, dbname):
+    def connectDatabase(self, path):
         """ Just create connection to SQLite database. """
         # connect to database
-        self.conn = sqlite3.connect(str(dbname))
+        self.conn = sqlite3.connect(str(path))
         self.conn.text_factory = str
         self.conn.execute("pragma encoding='UTF-8'")
         # self.conn.execute("BEGIN TRANSACTION")
         if self.checkDatabase():
-            # Populate models and views from database.
-            # -----------------------------------
-            # read structures table
-            # -----------------------------------
-            tlist = []
-            for row in self.conn.execute("SELECT id,structure,planar,description,structcode,groupcode FROM structype ORDER BY pos"):
-                tlist.append(list(row))
-
-            self.structures = StructureModel(tlist)
-
-            # let's add view of the data source we just created:
-            self.ui.structuresView.setModel(self.structures)
-            self.ui.structuresView.setColumnHidden(structurecol['id'], True)
-            self.ui.structuresView.setColumnHidden(structurecol['scode'], True)
-            self.ui.structuresView.setColumnHidden(structurecol['gcode'], True)
-            self.ui.structuresView.resizeColumnToContents(structurecol['structure'])
-            self.ui.structuresView.resizeColumnToContents(structurecol['planar'])
-            self.structureSelection = self.ui.structuresView.selectionModel()
-
-            # -----------------------------------
-            # read units table
-            # -----------------------------------
-            tlist = []
-            for row in self.conn.execute("SELECT id,name,description FROM units ORDER BY pos"):
-                tlist.append(list(row))
-
-            self.units = UnitModel(tlist)
-
-            # let's add view of the data source we just created:
-            self.ui.unitsView.setModel(self.units)
-            self.ui.unitsView.setColumnHidden(unitcol['id'], True)
-            self.ui.unitsView.resizeColumnToContents(unitcol['name'])
-            self.unitSelection = self.ui.unitsView.selectionModel()
-
-            # -----------------------------------
-            # read tags table
-            # -----------------------------------
-            tlist = []
-            for row in self.conn.execute("SELECT id,name,description FROM tags ORDER BY pos"):
-                tlist.append(list(row) + [QtCore.Qt.Unchecked, ])
-
-            self.tags = TagModel(tlist)
-
-            # let's add view of the data source we just created:
-            self.ui.tagsView.setModel(self.tags)
-            self.ui.tagsView.setColumnHidden(tagcol['id'], True)
-            self.ui.tagsView.setColumnHidden(tagcol['check'], True)
-            self.ui.tagsView.resizeColumnToContents(tagcol['name'])
-            self.tagSelection = self.ui.tagsView.selectionModel()
-
-            # -----------------------------------
-            # read sites table
-            # -----------------------------------
-            tlist = []
-            for row in self.conn.execute("SELECT id,name,x_coord,y_coord,description,id_units FROM sites ORDER BY id"):
-                tlist.append(list(row))
-
-            self.sites = SiteModel(tlist)
-
-            self.sortsites =  QtCore.QSortFilterProxyModel(self)
-            self.sortsites.setSourceModel(self.sites)
-            self.sortsites.setDynamicSortFilter(True)
-
-            # let's add view of the data source we just created:
-            self.ui.sitesView.setModel(self.sortsites)
-            self.ui.sitesView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-            # self.ui.sitesView.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-            # self.ui.sitesView.horizontalHeader().setStretchLastSection(True)
-            # self.ui.sitesView.verticalHeader().hide()
-            self.ui.sitesView.setColumnHidden(sitecol['id'], True)
-            self.ui.sitesView.setColumnHidden(sitecol['x'], True)
-            self.ui.sitesView.setColumnHidden(sitecol['y'], True)
-            self.ui.sitesView.setColumnHidden(sitecol['desc'], True)
-            self.ui.sitesView.setColumnHidden(sitecol['id_units'], True)
-            # self.ui.sitesView.verticalHeader().setDefaultSectionSize(22)
-            self.ui.sitesView.setSortingEnabled(True)
-            self.ui.sitesView.sortByColumn(sitecol['name'], QtCore.Qt.AscendingOrder)
-
-            # Connect siteSelection changed signal
-            self.siteSelection = self.ui.sitesView.selectionModel()
-            self.siteSelection.selectionChanged.connect(self.siteselChanged)
-            # connect sort signal
-            self.ui.sitesView.horizontalHeader().sectionClicked.connect(self.siteSorting)
-
-            # preload dialog
-            self.sitefilterdlg = DialogSiteFilter(self.units)
-            self.datafilterdlg = DialogDataFilter(self.structures)
-
-            # -----------------------------------
-            # All done, set focus ang go...
-            # -----------------------------------
-            self.siteSelection.setCurrentIndex(self.sites.index(0, sitecol['name']), QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Rows)
-            self.ui.sitesView.setFocus()
-
+            self.rereadDatabase()
             self.connected = True
             settings = QtCore.QSettings('LX', 'readsdb')
-            settings.setValue("sdbname", str(dbname))
+            settings.setValue("sdbname", str(path))
             self.readsdb.check_db()
             self.changed = False
+            self.setWindowTitle('SDB database manager - {}'.format(path.name))
             # dbversion = self.conn.execute("SELECT value FROM meta WHERE name='version'").fetchall()[0][0]
             # if dbversion.split('.')[0] < '3':
             #     QtWidgets.QMessageBox.warning(self, 'Version check', 'Your database is created in older version of PySDB.\nConsider database format update.')
         else:
-            QtWidgets.QMessageBox.critical(None, 'PySDB database', 'File {} is not valid PySDB database.'.format(dbname), QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.critical(None, 'PySDB database', 'File {} is not valid PySDB database.'.format(path), QtWidgets.QMessageBox.Ok)
             self.conn.close()
+
+    def rereadDatabase(self):
+        # Populate models and views from database.
+        # -----------------------------------
+        # read structures table
+        # -----------------------------------
+        tlist = []
+        for row in self.conn.execute("SELECT id,structure,planar,description,structcode,groupcode FROM structype ORDER BY pos"):
+            tlist.append(list(row))
+
+        self.structures = StructureModel(tlist)
+
+        # let's add view of the data source we just created:
+        self.ui.structuresView.setModel(self.structures)
+        self.ui.structuresView.setColumnHidden(structurecol['id'], True)
+        self.ui.structuresView.setColumnHidden(structurecol['scode'], True)
+        self.ui.structuresView.setColumnHidden(structurecol['gcode'], True)
+        self.ui.structuresView.resizeColumnToContents(structurecol['structure'])
+        self.ui.structuresView.resizeColumnToContents(structurecol['planar'])
+        self.structureSelection = self.ui.structuresView.selectionModel()
+
+        # -----------------------------------
+        # read units table
+        # -----------------------------------
+        tlist = []
+        for row in self.conn.execute("SELECT id,name,description FROM units ORDER BY pos"):
+            tlist.append(list(row))
+
+        self.units = UnitModel(tlist)
+
+        # let's add view of the data source we just created:
+        self.ui.unitsView.setModel(self.units)
+        self.ui.unitsView.setColumnHidden(unitcol['id'], True)
+        self.ui.unitsView.resizeColumnToContents(unitcol['name'])
+        self.unitSelection = self.ui.unitsView.selectionModel()
+
+        # -----------------------------------
+        # read tags table
+        # -----------------------------------
+        tlist = []
+        for row in self.conn.execute("SELECT id,name,description FROM tags ORDER BY pos"):
+            tlist.append(list(row) + [QtCore.Qt.Unchecked, ])
+
+        self.tags = TagModel(tlist)
+
+        # let's add view of the data source we just created:
+        self.ui.tagsView.setModel(self.tags)
+        self.ui.tagsView.setColumnHidden(tagcol['id'], True)
+        self.ui.tagsView.setColumnHidden(tagcol['check'], True)
+        self.ui.tagsView.resizeColumnToContents(tagcol['name'])
+        self.tagSelection = self.ui.tagsView.selectionModel()
+
+        # -----------------------------------
+        # read sites table
+        # -----------------------------------
+        tlist = []
+        for row in self.conn.execute("SELECT id,name,x_coord,y_coord,description,id_units FROM sites ORDER BY id"):
+            tlist.append(list(row))
+
+        self.sites = SiteModel(tlist)
+
+        self.sortsites =  QtCore.QSortFilterProxyModel(self)
+        self.sortsites.setSourceModel(self.sites)
+        self.sortsites.setDynamicSortFilter(True)
+
+        # let's add view of the data source we just created:
+        self.ui.sitesView.setModel(self.sortsites)
+        self.ui.sitesView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        # self.ui.sitesView.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        # self.ui.sitesView.horizontalHeader().setStretchLastSection(True)
+        # self.ui.sitesView.verticalHeader().hide()
+        self.ui.sitesView.setColumnHidden(sitecol['id'], True)
+        self.ui.sitesView.setColumnHidden(sitecol['x'], True)
+        self.ui.sitesView.setColumnHidden(sitecol['y'], True)
+        self.ui.sitesView.setColumnHidden(sitecol['desc'], True)
+        self.ui.sitesView.setColumnHidden(sitecol['id_units'], True)
+        # self.ui.sitesView.verticalHeader().setDefaultSectionSize(22)
+        self.ui.sitesView.setSortingEnabled(True)
+        self.ui.sitesView.sortByColumn(sitecol['name'], QtCore.Qt.AscendingOrder)
+
+        # Connect siteSelection changed signal
+        self.siteSelection = self.ui.sitesView.selectionModel()
+        self.siteSelection.selectionChanged.connect(self.siteselChanged)
+        # connect sort signal
+        self.ui.sitesView.horizontalHeader().sectionClicked.connect(self.siteSorting)
+
+        # preload dialog
+        self.sitefilterdlg = DialogSiteFilter(self.units)
+        self.datafilterdlg = DialogDataFilter(self.structures)
+
+        # -----------------------------------
+        # All done, set focus ang go...
+        # -----------------------------------
+        self.siteSelection.setCurrentIndex(self.sites.index(0, sitecol['name']), QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Rows)
+        self.ui.sitesView.setFocus()
 
     def dbcommit(self):
         self.conn.execute("REPLACE INTO meta (name,value) VALUES (?,?)", ("updated", datetime.datetime.now().strftime("%d.%m.%Y %H:%M")))
@@ -601,7 +642,7 @@ class PySDBWindow(QtWidgets.QMainWindow):
             # self.ui.sitesView.scrollToBottom()
             self.ui.sitesView.setFocus()
 
-    def editSiteDlg(self, index = None):
+    def editSiteDlg(self, index=None):
         """ Open site dialog to edit data. """
         # method is invoked by double-click (index passed) or by button action (no index passed)
         if not index:
@@ -1011,7 +1052,6 @@ class PySDBWindow(QtWidgets.QMainWindow):
         self.conn.execute("UPDATE structype SET pos=? WHERE id=?", (bpos, aid))
         self.conn.execute("UPDATE structype SET pos=? WHERE id=?", (apos, bid))
         self.changed = True
-
 
     # ----------------------------------------------------------------------
     # UNIT VIEW

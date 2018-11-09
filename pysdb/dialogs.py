@@ -22,8 +22,9 @@ Ui_SiteFilterDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 
 Ui_DialogSDBInfo, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/sdbinfo.ui'))
 Ui_ImportLayerDialog, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), 'ui/importlayer.ui'))
 
+
 class DialogAddEditSite(QtWidgets.QDialog):
-    def __init__(self, model, action, data=[-1,'',0.0,0.0,'',None], parent=None):
+    def __init__(self, model, action, data=[-1, '', 0.0, 0.0, '', None], parent=None):
         super(DialogAddEditSite, self).__init__(parent)
 
         self.ui = Ui_DialogAddEditSite()
@@ -60,7 +61,6 @@ class DialogAddEditSite(QtWidgets.QDialog):
 
         self.ui.sitenameEdit.setFocus()
 
-
     def accept(self):
         # add site accept check
         if self.ui.sitenameEdit.text():
@@ -75,9 +75,10 @@ class DialogAddEditSite(QtWidgets.QDialog):
             self.ui.sitenameEdit.setFocus()
             return
 
+
 class DialogAddEditData(QtWidgets.QDialog):
-    #datacol = {'id':0,'id_sites':1,'id_struct':2,'azi':3,'inc':4,'struct':5,'desc':6,'tags':7}
-    def __init__(self, model, tags, attached, action, data=[-1,-1,None,'','','','',''], parent=None):
+    # datacol = {'id':0,'id_sites':1,'id_struct':2,'azi':3,'inc':4,'struct':5,'desc':6,'tags':7}
+    def __init__(self, model, tags, attached, action, data=[-1, -1, None, '', '', '', '', ''], parent=None):
         super(DialogAddEditData, self).__init__(parent)
         self.ui = Ui_DialogAddEditData()
         self.ui.setupUi(self)
@@ -117,9 +118,9 @@ class DialogAddEditData(QtWidgets.QDialog):
         # set title
         self.setWindowTitle(QtWidgets.QApplication.translate("DialogAddEditData", title))
         # set validation rules
-        self.azival = QtGui.QDoubleValidator(0.0,360.0,1000)
+        self.azival = QtGui.QDoubleValidator(0.0, 360.0, 1000)
         self.azival.setNotation(QtGui.QDoubleValidator.StandardNotation)
-        self.incval = QtGui.QDoubleValidator(0.0,90.0,1000)
+        self.incval = QtGui.QDoubleValidator(0.0, 90.0, 1000)
         self.incval.setNotation(QtGui.QDoubleValidator.StandardNotation)
         self.ui.azimuthEdit.setValidator(self.azival)
         self.ui.inclinationEdit.setValidator(self.incval)
@@ -165,9 +166,10 @@ class DialogAddEditData(QtWidgets.QDialog):
         self.data[datacol['desc']] = self.ui.descriptionEdit.toPlainText()
         QtWidgets.QDialog.accept(self)
 
+
 class DialogAddEditStructure(QtWidgets.QDialog):
-    #structurecol = {'id':0,'structure':1,'planar':2,'desc':3,'scode':4,'gcode':5}
-    def __init__(self, action, data=[-1,'', 1, '', 0, 0], parent=None):
+    # structurecol = {'id':0,'structure':1,'planar':2,'desc':3,'scode':4,'gcode':5}
+    def __init__(self, action, data=[-1, '', 1, '', 0, 0], parent=None):
         super(DialogAddEditStructure, self).__init__(parent)
 
         self.ui = Ui_DialogAddEditStructure()
@@ -218,9 +220,10 @@ class DialogAddEditStructure(QtWidgets.QDialog):
             self.ui.structnameEdit.setFocus()
             return
 
+
 class DialogAddEditUnit(QtWidgets.QDialog):
-    #unitcol = {'id':0,'name':1,'desc':2}
-    def __init__(self, action, data=[-1,'', 1, '', 0, 0], parent=None):
+    # unitcol = {'id':0,'name':1,'desc':2}
+    def __init__(self, action, data=[-1, '', 1, '', 0, 0], parent=None):
         super(DialogAddEditUnit, self).__init__(parent)
 
         self.ui = Ui_DialogAddEditUnit()
@@ -251,9 +254,10 @@ class DialogAddEditUnit(QtWidgets.QDialog):
             self.ui.unitnameEdit.setFocus()
             return
 
+
 class DialogAddEditTag(QtWidgets.QDialog):
-    #tagcol = {'id':0,'name':1,'desc':2,'check':3}
-    def __init__(self, action, data=[-1,'', 1, '', 0, 0], parent=None):
+    # tagcol = {'id':0,'name':1,'desc':2,'check':3}
+    def __init__(self, action, data=[-1, '', 1, '', 0, 0], parent=None):
         super(DialogAddEditTag, self).__init__(parent)
 
         self.ui = Ui_DialogAddEditTag()
@@ -411,15 +415,8 @@ class ImportLayerDialog(QtWidgets.QDialog):
 
     def accept(self):
         layer = self.layerCombo.currentLayer()
-        if layer in not None:
+        if layer is not None:
             if self.siteCombo.currentField() != '':
-                if self.ui.checkBoxUpdate.isChecked():
-                    # update
-                    pass
-                else:
-                    # import
-                    pass
-                # do import update
                 QtWidgets.QDialog.accept(self)
             else:
                 QtWidgets.QMessageBox.warning(self, 'Import from layer', 'Site name cannot be empty!')
