@@ -38,6 +38,7 @@ from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
 from PyQt5.QtWidgets import QAction
+from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
 from qgis.core import *
 from qgis.gui import QgsMapToolIdentifyFeature
 
@@ -66,7 +67,8 @@ structure_fields = {'name': QVariant.String,
                     'lbloff': QVariant.String
                     }
 
-site_fields = {'name': QVariant.String,
+site_fields = {'id': QVariant.Int,
+               'name': QVariant.String,
                'unit': QVariant.String,
                'description': QVariant.String
                }
@@ -144,6 +146,28 @@ class ReadSDB:
 
     def check_db(self):
         try:
+            self.db = QSqlDatabase.addDatabase('QSQLITE')
+            self.db.setDatabaseName(self.settings.value("sdbname", type=str))
+            # query = QSqlQuery()
+            self.db.open()
+            self.model = QSqlRelationalTableModel()
+            self.model.setTable('sites')
+            self.model.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.model.setRelation(1, QSqlRelation('units', 'id', 'name'))
+            self.model.setHeaderData(0, Qt.Horizontal, "ID")
+            self.model.setHeaderData(1, Qt.Horizontal, "Unit")
+            self.model.setHeaderData(2, Qt.Horizontal, "Name")
+            self.model.setHeaderData(3, Qt.Horizontal, "X")
+            self.model.setHeaderData(4, Qt.Horizontal, "Y")
+            self.model.setHeaderData(5, Qt.Horizontal, "Description")
+
+            self.dock.dataView.setModel(self.model)
+            self.dock.dataView.setItemDelegate(QSqlRelationalDelegate(self.dock.dataView))
+            self.dock.dataView.hideColumn(0)
+            self.dock.dataView.hideColumn(3)
+            self.dock.dataView.hideColumn(4)
+            self.dock.dataView.horizontalHeader().moveSection(1, 2)
+
             self.sdb = SDB(self.settings.value("sdbname", type=str))
             self.dbok = True
             for ac in self.actions[2:]:
@@ -157,7 +181,11 @@ class ReadSDB:
 
     def check_site_layer(self):
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.editAction.setChecked(False)
             self.editAction.setEnabled(False)
+            self.dock.lineSite.setText('')
+            self.model.setFilter("sites.name=''")
+            self.model.select()
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -340,6 +368,8 @@ class ReadSDB:
         del self.toolbar
         # remove dock
         del self.dock
+        # close db
+        self.db.close()
 
     def sanitize(self, text):
         rtext = ''
@@ -389,16 +419,21 @@ class ReadSDB:
 
     def read_sites(self):
         """Read sites from SDB database"""
+        SEL = """SELECT sites.id as id, sites.name as name, units.name as unit,
+                 sites.x_coord as x, sites.y_coord as y, sites.description as description
+                 FROM sites INNER JOIN units ON units.id = sites.id_units
+                 ORDER BY sites.id"""
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
             QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
 
             layer = self.create_layer('Sites', site_fields)
             provider = layer.dataProvider()
             layer.startEditing()
-            for rec in self.sdb.execsql(SDB._SITE_SELECT):
+            for rec in self.sdb.execsql(SEL):
                 feature = QgsFeature()
                 feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(rec['x'], rec['y'])))
-                feature.setAttributes([rec['name'],
+                feature.setAttributes([rec['id'],
+                                       rec['name'],
                                        rec['unit'],
                                        self.sanitize(rec['description'])
                                        ])
@@ -577,9 +612,13 @@ class ReadSDB:
                 self.editSiteTool.featureIdentified.connect(self.on_site_edit)
                 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock.dockWidget)
                 self.dock.lineSite.setText('')
+                self.model.setFilter("sites.name=''")
+                self.model.select()
             else:
                 self.editSiteTool = None
                 self.iface.removeDockWidget(self.dock.dockWidget)
 
     def on_site_edit(self, feature):
-        self.dock.lineSite.setText(feature['name'])
+        self.dock.lineSite.setText(str(feature['id']))
+        self.model.setFilter("sites.name='{}'".format(feature['name']))
+        self.model.select()
