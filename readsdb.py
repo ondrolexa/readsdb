@@ -39,6 +39,7 @@ from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVa
 from PyQt5.QtGui import QIcon, QCursor
 from PyQt5.QtWidgets import QAction
 from qgis.core import *
+from qgis.gui import QgsMapToolIdentifyFeature
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -126,12 +127,17 @@ class ReadSDB:
         # create toolbar
         self.toolbar = self.iface.addToolBar(u'ReadSDB')
         self.toolbar.setObjectName(u'ReadSDB')
+        # create site dock
+        self.dock = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_datadock.ui'))
 
         # Create the dialogs (after translation) and keep reference
         self.connect_dlg = ReadSDBConnectDialog(self)
         self.options_dlg = ReadSDBOptionsDialog(self)
         self.structures_dlg = ReadSDBStructuresDialog(self)
         self.plot_dlg = ReadSDBPlotDialog(self)
+
+        #
+        QgsProject.instance().layerStore().layerRemoved.connect(self.check_site_layer)
 
         # Store sites layer
         self.sites_layer = None
@@ -142,10 +148,16 @@ class ReadSDB:
             self.dbok = True
             for ac in self.actions[2:]:
                 ac.setEnabled(True)
+            if self.sites_layer is None:
+                self.editAction.setEnabled(False)
         except (AssertionError, sqlite3.OperationalError):
             self.dbok = False
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
+
+    def check_site_layer(self):
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.editAction.setEnabled(False)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -306,6 +318,14 @@ class ReadSDB:
             callback=self.plot_structures,
             parent=self.iface.mainWindow())
 
+        icon_path = ':/plugins/readsdb/icons/icon_edt.png'
+        self.editAction = self.add_action(
+            icon_path,
+            text=self.tr(u'Edit site'),
+            callback=self.edit_site,
+            parent=self.iface.mainWindow())
+        self.editAction.setCheckable(True)
+
         # Check database and set actions
         self.check_db()
 
@@ -318,6 +338,8 @@ class ReadSDB:
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+        # remove dock
+        del self.dock
 
     def sanitize(self, text):
         rtext = ''
@@ -390,6 +412,8 @@ class ReadSDB:
             QgsProject.instance().addMapLayer(layer)
             # store pointer
             self.sites_layer = layer
+            # enable site edit action
+            self.editAction.setEnabled(True)
 
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
@@ -539,3 +563,23 @@ class ReadSDB:
             self.plot_dlg.plotnet()
             # Run the dialog event loop
             self.plot_dlg.exec_()
+
+    def edit_site(self):
+        """Select database and set plugin options"""
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.iface.messageBar().pushSuccess('SDB Read', 'You have to read localities before use this tool.')
+            self.editAction.setChecked(False)
+        else:
+            if self.editAction.isChecked():
+                self.editSiteTool = QgsMapToolIdentifyFeature(self.iface.mapCanvas())
+                self.editSiteTool.setLayer(self.sites_layer)
+                self.iface.mapCanvas().setMapTool(self.editSiteTool)
+                self.editSiteTool.featureIdentified.connect(self.on_site_edit)
+                self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock.dockWidget)
+                self.dock.lineSite.setText('')
+            else:
+                self.editSiteTool = None
+                self.iface.removeDockWidget(self.dock.dockWidget)
+
+    def on_site_edit(self, feature):
+        self.dock.lineSite.setText(feature['name'])

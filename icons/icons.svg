@@ -25,8 +25,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.44731957"
-     inkscape:cx="-90.808053"
-     inkscape:cy="589.01803"
+     inkscape:cx="90.478026"
+     inkscape:cy="297.33407"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -49,7 +49,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -181,7 +181,7 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
-       x="437.21625"
+       x="438.5015"
        y="943.15118"
        id="text3908-9-1"
        inkscape:export-filename="C:\develrepo\readsdb\icon_net.png"
@@ -189,7 +189,7 @@
        inkscape:export-ydpi="21.690001"><tspan
          sodipodi:role="line"
          id="tspan3910-4-7"
-         x="437.21625"
+         x="438.5015"
          y="943.15118"
          style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:115.3237381px;line-height:1.25;font-family:Ubuntu;-inkscape-font-specification:'Ubuntu Bold'">NET</tspan></text>
     <rect
@@ -197,7 +197,7 @@
        id="rect3916-6-4"
        width="283.24954"
        height="283.24954"
-       x="413.22348"
+       x="414.23752"
        y="676.7843"
        inkscape:export-filename="C:\develrepo\readsdb\icon_net.png"
        inkscape:export-xdpi="21.690001"
@@ -340,5 +340,123 @@
          id="path1238"
          inkscape:connector-curvature="0" />
     </g>
+    <g
+       id="g887"
+       transform="matrix(2.7882821,0,0,2.7882821,849.0112,704.34787)"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001">
+      <path
+         d="m 6.3262,4.6738 c -1.3116,0 -2.3674,1.3799 -2.3674,3.094 v 46 c 0,1.714 1.0558,3.094 2.3674,3.094 h 47.45 c 1.311,0 2.367,-1.38 2.367,-3.094 v -46 c 0,-1.7143 -1.056,-3.0942 -2.367,-3.0942 h -47.45 z"
+         transform="matrix(0.97014,0,0,0.97014,0.84436,0.15094)"
+         style="fill:none;stroke:#ffffff;stroke-width:8.37510014;stroke-linecap:round;stroke-linejoin:round"
+         sodipodi:nodetypes="ccccccccc"
+         id="path1761"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 6.3262,4.6738 c -1.3116,0 -2.3674,1.3799 -2.3674,3.094 v 46 c 0,1.714 1.0558,3.094 2.3674,3.094 h 47.45 c 1.311,0 2.367,-1.38 2.367,-3.094 v -46 c 0,-1.7143 -1.056,-3.0942 -2.367,-3.0942 h -47.45 z"
+         transform="matrix(0.97014,0,0,0.97014,0.84436,0.15094)"
+         style="fill:#ffffff;fill-rule:evenodd"
+         sodipodi:nodetypes="ccccccccc"
+         id="path1128"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 6.28,4.4817 c -1.286,0 -2.3212,1.0353 -2.3212,2.3212 v 4.0791 c 0,1.286 1.0352,2.321 2.3212,2.321 h 47.542 c 1.286,0 2.321,-1.035 2.321,-2.321 V 6.8029 c 0,-1.2859 -1.035,-2.3212 -2.321,-2.3212 z"
+         transform="matrix(0.97014,0,0,0.97014,0.84436,0.15094)"
+         style="fill:#007aff;fill-opacity:0.74509804;fill-rule:evenodd;stroke-width:3.125;stroke-linecap:round;stroke-linejoin:round"
+         id="rect922"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 6.3262,4.6738 c -1.3116,0 -2.3674,1.3799 -2.3674,3.094 v 46 c 0,1.714 1.0558,3.094 2.3674,3.094 h 47.45 c 1.311,0 2.367,-1.38 2.367,-3.094 v -46 c 0,-1.7143 -1.056,-3.0942 -2.367,-3.0942 h -47.45 z"
+         transform="matrix(0.97014,0,0,0.97014,0.84436,0.15094)"
+         style="fill:none;stroke:#000000;stroke-width:3.22119999;stroke-linecap:round;stroke-linejoin:round"
+         sodipodi:nodetypes="ccccccccc"
+         id="rect1561"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 3.9588,10.882 c 0,1.286 1.0352,2.321 2.3212,2.321 h 47.546 c 1.286,0 2.321,-1.035 2.321,-2.321"
+         transform="matrix(0.97014,0,0,0.97014,0.84436,0.15094)"
+         style="fill:none;stroke:#000000;stroke-width:3.22119999;stroke-linecap:round;stroke-linejoin:round"
+         id="rect1558"
+         inkscape:connector-curvature="0" />
+      <g
+         transform="matrix(0.78432,0,0,0.78432,13.762,1.0095)"
+         id="g3919">
+        <g
+           id="g1713">
+          <path
+             d="M 19.752,46.033 C 7.026,55.314 7.026,55.314 7.026,55.314 l 7.841,-13.667 z"
+             style="fill:none;stroke:#ffffff;stroke-width:10.35900021;stroke-linecap:round;stroke-linejoin:round"
+             id="path1075"
+             inkscape:connector-curvature="0" />
+          <rect
+             x="-45.458"
+             y="-20.823999"
+             width="6.4665999"
+             height="46.57"
+             transform="matrix(-0.7409,-0.67162,0.66989,-0.74246,0,0)"
+             style="fill:none;stroke:#ffffff;stroke-width:10.35900021;stroke-linecap:round;stroke-linejoin:round"
+             id="rect1076" />
+          <path
+             d="m 49.611,10.417 c 0.835,0.757 2.105,0.702 2.849,-0.123 C 53.205,9.4693 53.132,8.1964 52.298,7.44 L 49.848,5.2196 C 49.014,4.4632 47.743,4.5182 46.999,5.343 46.255,6.1677 46.327,7.4406 47.162,8.197 Z"
+             style="fill:none;stroke:#ffffff;stroke-width:10.35900021;stroke-linecap:round;stroke-linejoin:round"
+             id="path1078"
+             inkscape:connector-curvature="0" />
+        </g>
+        <g
+           transform="matrix(0.98679,0,0,0.9891,0.34843,-0.051865)"
+           id="g1540">
+          <path
+             transform="matrix(-1.5263,-1.3804,1.3804,-1.5263,85.505,171.65)"
+             d="m 64.489,23.609 c 1.59,-7.585 1.59,-7.585 1.59,-7.585 l 1.64,7.57 z"
+             style="fill:#000000;fill-rule:evenodd;stroke:#000000;stroke-width:1.95969999;stroke-linecap:round;stroke-linejoin:round"
+             id="path599"
+             inkscape:connector-curvature="0" />
+          <rect
+             x="64.511002"
+             y="23.617001"
+             width="3.181"
+             height="22.903"
+             transform="matrix(-1.5263,-1.3804,1.3804,-1.5263,85.505,171.65)"
+             style="fill:#ffffff;fill-rule:evenodd;stroke:#000000;stroke-width:1.95969999;stroke-linecap:round;stroke-linejoin:round"
+             id="rect598" />
+          <path
+             transform="matrix(-1.0042,-0.90819,0.90819,-1.0042,54.567,126.9)"
+             d="m 61.966,18.726 c 0,0.343 -0.278,0.621 -0.62,0.621 -0.342,0 -0.62,-0.278 -0.62,-0.621 0,-0.342 0.278,-0.62 0.62,-0.62 0.342,0 0.62,0.278 0.62,0.62 z"
+             style="fill:#000000;fill-rule:evenodd;stroke:#000000;stroke-width:2.97860003;stroke-linecap:round;stroke-linejoin:round"
+             id="path600"
+             inkscape:connector-curvature="0" />
+          <path
+             transform="matrix(-1.5263,-1.3804,1.3804,-1.5263,85.505,171.65)"
+             d="m 65.32,46.449 c -0.554,0 -1,0.44 -1,0.986 0,0.546 0.446,0.986 1,0.986 h 1.627 c 0.554,0 1,-0.44 1,-0.986 0,-0.546 -0.446,-0.986 -1,-0.986 z"
+             style="fill:#ffffff;fill-rule:evenodd;stroke:#000000;stroke-width:1.95969999;stroke-linecap:round;stroke-linejoin:round"
+             id="rect601"
+             inkscape:connector-curvature="0" />
+        </g>
+      </g>
+    </g>
+    <text
+       inkscape:export-ydpi="21.690001"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-filename="C:\develrepo\readsdb\icon_net.png"
+       id="text891"
+       y="961.03546"
+       x="817.771"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       xml:space="preserve"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:115.3237381px;line-height:1.25;font-family:Ubuntu;-inkscape-font-specification:'Ubuntu Bold'"
+         y="961.03546"
+         x="817.771"
+         id="tspan889"
+         sodipodi:role="line">EDT</tspan></text>
+    <rect
+       inkscape:export-ydpi="21.690001"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-filename="C:\develrepo\readsdb\icon_net.png"
+       y="694.66858"
+       x="791.02942"
+       height="283.24954"
+       width="283.24954"
+       id="rect893"
+       style="fill:none;stroke:none" />
   </g>
 </svg>
