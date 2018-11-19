@@ -151,22 +151,21 @@ class ReadSDB:
             # query = QSqlQuery()
             self.db.open()
             self.model = QSqlRelationalTableModel()
-            self.model.setTable('sites')
-            self.model.setEditStrategy(QSqlTableModel.OnManualSubmit)
-            self.model.setRelation(1, QSqlRelation('units', 'id', 'name'))
+            self.model.setTable('structdata')
+            self.model.setEditStrategy(QSqlTableModel.OnFieldChange)
+            self.model.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
             self.model.setHeaderData(0, Qt.Horizontal, "ID")
-            self.model.setHeaderData(1, Qt.Horizontal, "Unit")
-            self.model.setHeaderData(2, Qt.Horizontal, "Name")
-            self.model.setHeaderData(3, Qt.Horizontal, "X")
-            self.model.setHeaderData(4, Qt.Horizontal, "Y")
+            self.model.setHeaderData(1, Qt.Horizontal, "ID_Site")
+            self.model.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.model.setHeaderData(3, Qt.Horizontal, "Azi")
+            self.model.setHeaderData(4, Qt.Horizontal, "Inc")
             self.model.setHeaderData(5, Qt.Horizontal, "Description")
 
             self.dock.dataView.setModel(self.model)
             self.dock.dataView.setItemDelegate(QSqlRelationalDelegate(self.dock.dataView))
             self.dock.dataView.hideColumn(0)
-            self.dock.dataView.hideColumn(3)
-            self.dock.dataView.hideColumn(4)
-            self.dock.dataView.horizontalHeader().moveSection(1, 2)
+            self.dock.dataView.hideColumn(1)
+            # self.dock.dataView.horizontalHeader().moveSection(1, 3)
 
             self.sdb = SDB(self.settings.value("sdbname", type=str))
             self.dbok = True
@@ -184,7 +183,7 @@ class ReadSDB:
             self.editAction.setChecked(False)
             self.editAction.setEnabled(False)
             self.dock.lineSite.setText('')
-            self.model.setFilter("sites.name=''")
+            self.model.setFilter("structdata.id_sites=-1")
             self.model.select()
 
     # noinspection PyMethodMayBeStatic
@@ -619,6 +618,6 @@ class ReadSDB:
                 self.iface.removeDockWidget(self.dock.dockWidget)
 
     def on_site_edit(self, feature):
-        self.dock.lineSite.setText(str(feature['id']))
-        self.model.setFilter("sites.name='{}'".format(feature['name']))
+        self.dock.lineSite.setText(str(feature['name']))
+        self.model.setFilter("structdata.id_sites={}".format(feature['id']))
         self.model.select()
