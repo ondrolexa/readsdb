@@ -132,6 +132,18 @@ class PySDBWindow(QtWidgets.QMainWindow):
                 settings.setArrayIndex(ix)
                 settings.setValue("sdbfile", str(f))
             settings.endArray()
+            # reload sites layer if needed
+            if self.changed:
+                if self.readsdb.sites_layer in QgsProject.instance().mapLayers().values():
+                    QgsProject.instance().layerStore().removeMapLayer(self.readsdb.sites_layer)
+                    self.readsdb.sites_layer = None
+                    if hasattr(self.readsdb, 'db'):
+                        self.readsdb.db.close()
+                        self.readsdb.editSiteTool = None
+                        self.readsdb.editAction.setChecked(False)
+                        self.readsdb.iface.removeDockWidget(self.readsdb.dock.dockWidget)
+                        self.readsdb.check_db()
+                    self.readsdb.read_sites()
         else:
             self.lastdir = Path(settings.value("lastdir", str(Path.home()), type=str))
             self.recent = []
@@ -184,6 +196,17 @@ class PySDBWindow(QtWidgets.QMainWindow):
             self.connectDatabase(p)
             self.lastdir = p.parent
             self.addtorecent(p)
+            if not checked:
+                if self.readsdb.sites_layer in QgsProject.instance().mapLayers().values():
+                    QgsProject.instance().layerStore().removeMapLayer(self.readsdb.sites_layer)
+                    self.readsdb.sites_layer = None
+                    if hasattr(self.readsdb, 'db'):
+                        self.readsdb.db.close()
+                        self.readsdb.editSiteTool = None
+                        self.readsdb.editAction.setChecked(False)
+                        self.readsdb.iface.removeDockWidget(self.readsdb.dock.dockWidget)
+                        self.readsdb.check_db()
+                    self.readsdb.read_sites()
         else:
             QtWidgets.QMessageBox.warning(self, 'File error', 'Database {} does not exists !'.format(p.name))
             if p in self.recent:
@@ -516,7 +539,6 @@ class PySDBWindow(QtWidgets.QMainWindow):
             self.connected = True
             settings = QtCore.QSettings('LX', 'readsdb')
             settings.setValue("sdbname", str(path))
-            self.readsdb.check_db()
             self.changed = False
             self.setWindowTitle('SDB database manager - {}'.format(path.name))
             # dbversion = self.conn.execute("SELECT value FROM meta WHERE name='version'").fetchall()[0][0]

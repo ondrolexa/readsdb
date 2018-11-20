@@ -37,7 +37,7 @@ import sqlite3
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
-from PyQt5.QtWidgets import QAction
+from PyQt5.QtWidgets import QAction, QDialogButtonBox
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
 from qgis.core import *
 from qgis.gui import QgsMapToolIdentifyFeature
@@ -152,7 +152,7 @@ class ReadSDB:
             self.db.open()
             self.model = QSqlRelationalTableModel()
             self.model.setTable('structdata')
-            self.model.setEditStrategy(QSqlTableModel.OnFieldChange)
+            self.model.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.model.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
             self.model.setHeaderData(0, Qt.Horizontal, "ID")
             self.model.setHeaderData(1, Qt.Horizontal, "ID_Site")
@@ -353,6 +353,11 @@ class ReadSDB:
             parent=self.iface.mainWindow())
         self.editAction.setCheckable(True)
 
+        # Connect site edit dialog
+        self.dock.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset_site_edit)
+        self.dock.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply_site_edit)
+        self.dock.toolAdd.clicked.connect(self.add_data)
+        self.dock.toolRemove.clicked.connect(self.remove_data)
         # Check database and set actions
         self.check_db()
 
@@ -383,7 +388,7 @@ class ReadSDB:
         p = Path(self.settings.value("sdbname", type=str))
         if not p.is_file():
             p = None
-        window.openFileSDB(False, p)
+        window.openFileSDB(True, p)
         window.show()
 
     def set_options(self):
@@ -611,13 +616,33 @@ class ReadSDB:
                 self.editSiteTool.featureIdentified.connect(self.on_site_edit)
                 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock.dockWidget)
                 self.dock.lineSite.setText('')
-                self.model.setFilter("sites.name=''")
+                self.model.setFilter("structdata.id_sites=-1")
                 self.model.select()
             else:
                 self.editSiteTool = None
                 self.iface.removeDockWidget(self.dock.dockWidget)
 
     def on_site_edit(self, feature):
-        self.dock.lineSite.setText(str(feature['name']))
+        self.dock.lineSite.setText('{} - {}'.format(feature['name'], feature['unit']))
         self.model.setFilter("structdata.id_sites={}".format(feature['id']))
         self.model.select()
+
+    def reset_site_edit(self):
+        self.model.revertAll()
+        self.model.select()
+
+    def apply_site_edit(self):
+        self.model.submitAll()
+
+    def add_data(self):
+        # self.model.insertRow(self.model.rowCount())
+        rec = self.model.record()
+        siteid = int(self.model.filter().split('=')[1])
+        if siteid > 0:
+            rec.setValue(rec.field(1).name(), siteid)
+            rec.setValue(rec.field(2).name(), 0)
+            rec.setValue(rec.field(3).name(), 0)
+            self.model.insertRecord(-1, rec)
+
+    def remove_data(self):
+        self.model.removeRow(self.dock.dataView.currentIndex().row())
