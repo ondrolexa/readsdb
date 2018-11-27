@@ -36,16 +36,14 @@ from pathlib import Path
 import sqlite3
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
-from PyQt5.QtGui import QIcon, QCursor
-from PyQt5.QtWidgets import QAction, QDialogButtonBox
-from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
+from PyQt5.QtGui import QIcon, QCursor, QDoubleValidator
+from PyQt5.QtWidgets import QAction, QTableView, QDataWidgetMapper, QHeaderView, QAbstractItemView, QDialogButtonBox
+from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
 from qgis.core import *
 from qgis.gui import QgsMapToolIdentifyFeature
 
 # Initialize Qt resources from file resources.py
 from .resources import *
-
-from .pysdb.mainapp import PySDBWindow
 
 # Need latest APSG
 import sys
@@ -131,6 +129,8 @@ class ReadSDB:
         self.toolbar.setObjectName(u'ReadSDB')
         # create site dock
         self.dock = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_datadock.ui'))
+        # create manager dialog
+        self.manager = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/readsdb_manager.ui'))
 
         # Create the dialogs (after translation) and keep reference
         self.connect_dlg = ReadSDBConnectDialog(self)
@@ -150,18 +150,135 @@ class ReadSDB:
             self.db.setDatabaseName(self.settings.value("sdbname", type=str))
             # query = QSqlQuery()
             self.db.open()
-            self.model = QSqlRelationalTableModel()
-            self.model.setTable('structdata')
-            self.model.setEditStrategy(QSqlTableModel.OnManualSubmit)
-            self.model.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
-            self.model.setHeaderData(0, Qt.Horizontal, "ID")
-            self.model.setHeaderData(1, Qt.Horizontal, "ID_Site")
-            self.model.setHeaderData(2, Qt.Horizontal, "Structure")
-            self.model.setHeaderData(3, Qt.Horizontal, "Azi")
-            self.model.setHeaderData(4, Qt.Horizontal, "Inc")
-            self.model.setHeaderData(5, Qt.Horizontal, "Description")
+            # self.db.transaction()
+            # Site model and view
+            self.sitemodel = QSqlRelationalTableModel()
+            self.sitemodel.setTable('sites')
+            #self.sitemodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.sitemodel.setRelation(1, QSqlRelation('units', 'id', 'name'))
+            self.sitemodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.sitemodel.setHeaderData(1, Qt.Horizontal, "Unit")
+            self.sitemodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.sitemodel.setHeaderData(3, Qt.Horizontal, "X")
+            self.sitemodel.setHeaderData(4, Qt.Horizontal, "Y")
+            self.sitemodel.setHeaderData(5, Qt.Horizontal, "Description")
+            self.sitemodel.select()
+            self.manager.siteView.setModel(self.sitemodel)
+            self.manager.siteView.setItemDelegate(QSqlRelationalDelegate(self.manager.siteView))
+            self.manager.siteView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.siteView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.siteView.hideColumn(0)
+            self.manager.siteView.hideColumn(1)
+            self.manager.siteView.hideColumn(3)
+            self.manager.siteView.hideColumn(4)
+            self.manager.siteView.hideColumn(5)
+            self.manager.siteView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.manager.siteView.verticalHeader().setVisible(False)
+            # Data model and view
+            self.datamodel = QSqlRelationalTableModel()
+            self.datamodel.setTable('structdata')
+            #self.datamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.datamodel.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
+            self.datamodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.datamodel.setHeaderData(1, Qt.Horizontal, "ID_Site")
+            self.datamodel.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.datamodel.setHeaderData(3, Qt.Horizontal, "Azi")
+            self.datamodel.setHeaderData(4, Qt.Horizontal, "Inc")
+            self.datamodel.setHeaderData(5, Qt.Horizontal, "Description")
+            self.datamodel.setFilter("structdata.id_sites=0")
+            self.datamodel.select()
+            self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
+            self.manager.dataView.setModel(self.datamodel)
+            self.manager.dataView.setItemDelegate(QSqlRelationalDelegate(self.manager.dataView))
+            self.manager.dataView.hideColumn(0)
+            self.manager.dataView.hideColumn(1)
+            self.manager.dataView.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+            self.manager.dataView.verticalHeader().setVisible(False)
+            # Unit model and view
+            self.unitmodel = QSqlTableModel()
+            self.unitmodel.setTable('units')
+            #self.unitmodel.setEditStrategy(QSqlTableModel.OnFieldChange)
+            self.unitmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.unitmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.unitmodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.unitmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.unitmodel.select()
+            self.manager.unitView.setModel(self.unitmodel)
+            self.manager.unitView.hideColumn(0)
+            self.manager.unitView.hideColumn(1)
+            self.manager.unitView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.unitView.verticalHeader().setVisible(False)
+            self.manager.comboUnit.setModel(self.unitmodel)
+            self.manager.comboUnit.setModelColumn(self.unitmodel.fieldIndex('name'))
+            # Structures model and view
+            self.structmodel = QSqlTableModel()
+            self.structmodel.setTable('structype')
+            #self.structmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.structmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.structmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.structmodel.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.structmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.structmodel.setHeaderData(4, Qt.Horizontal, "Structcode")
+            self.structmodel.setHeaderData(5, Qt.Horizontal, "Groupcode")
+            self.structmodel.setHeaderData(6, Qt.Horizontal, "Planar")
+            self.structmodel.setSort(1, Qt.AscendingOrder)
+            self.structmodel.select()
+            self.manager.structuresView.setModel(self.structmodel)
+            self.manager.structuresView.hideColumn(0)
+            #self.manager.structuresView.hideColumn(1)
+            self.manager.structuresView.horizontalHeader().moveSection(3, 6)
+            self.manager.structuresView.horizontalHeader().moveSection(5, 3)
+            self.manager.structuresView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.structuresView.verticalHeader().setVisible(False)
+            # Tags model and view
+            self.tagsmodel = QSqlTableModel()
+            self.tagsmodel.setTable('tags')
+            #self.tagsmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.tagsmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.tagsmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.tagsmodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.tagsmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.tagsmodel.select()
+            self.manager.tagsView.setModel(self.tagsmodel)
+            self.manager.tagsView.hideColumn(0)
+            self.manager.tagsView.hideColumn(1)
+            self.manager.tagsView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.tagsView.verticalHeader().setVisible(False)
+            # Meta model and view
+            self.metamodel = QSqlQueryModel()
+            self.metamodel.setQuery('SELECT * from meta')
+            #self.metamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.metamodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.metamodel.setHeaderData(1, Qt.Horizontal, "Name")
+            self.metamodel.setHeaderData(2, Qt.Horizontal, "Value")
+            #self.metamodel.select()
+            self.manager.metaView.setModel(self.metamodel)
+            self.manager.metaView.hideColumn(0)
+            self.manager.metaView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.manager.metaView.verticalHeader().setVisible(False)
+            # Mapper
+            self.mapper = QDataWidgetMapper()
+            self.mapper.setModel(self.sitemodel)
+            self.mapperdelegate = QSqlRelationalDelegate()
+            self.mapper.setItemDelegate(self.mapperdelegate)
+            self.mapper.addMapping(self.manager.xcoord, self.sitemodel.fieldIndex("x_coord"))
+            self.mapper.addMapping(self.manager.ycoord, self.sitemodel.fieldIndex("y_coord"))
+            self.mapper.addMapping(self.manager.siteDesc, self.sitemodel.fieldIndex("description"))
+            self.mapper.addMapping(self.manager.comboUnit, 1)
+            self.mapper.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
+            # Dock model and view
+            self.dockmodel = QSqlRelationalTableModel()
+            self.dockmodel.setTable('structdata')
+            self.dockmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.dockmodel.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
+            self.dockmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.dockmodel.setHeaderData(1, Qt.Horizontal, "ID_Site")
+            self.dockmodel.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.dockmodel.setHeaderData(3, Qt.Horizontal, "Azi")
+            self.dockmodel.setHeaderData(4, Qt.Horizontal, "Inc")
+            self.dockmodel.setHeaderData(5, Qt.Horizontal, "Description")
 
-            self.dock.dataView.setModel(self.model)
+            self.dock.dataView.setModel(self.dockmodel)
             self.dock.dataView.setItemDelegate(QSqlRelationalDelegate(self.dock.dataView))
             self.dock.dataView.hideColumn(0)
             self.dock.dataView.hideColumn(1)
@@ -177,14 +294,6 @@ class ReadSDB:
             self.dbok = False
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
-
-    def check_site_layer(self):
-        if self.sites_layer not in QgsProject.instance().mapLayers().values():
-            self.editAction.setChecked(False)
-            self.editAction.setEnabled(False)
-            self.dock.lineSite.setText('')
-            self.model.setFilter("structdata.id_sites=-1")
-            self.model.select()
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -203,44 +312,6 @@ class ReadSDB:
 
     def res_path(self, path):
         return os.path.join(self.plugin_dir, path)
-
-    def calc_gc(self, point=None):
-        """Calculate Grid convergence for project CRS"""
-        crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
-        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
-
-        if point is None:
-            point = self.iface.mapCanvas().extent().center()
-        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
-
-        if point_ll.y() < 89.9:
-            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() + 0.01)
-            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
-            gc = point.azimuth(point_north)
-        else:
-            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() - 0.01)
-            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
-            gc = point_north.azimuth(point)
-        return gc
-
-    def calc_md(self, point=None, time=date.today()):
-        """Calculate magnetic declination uising Christopher Weiss geomag library.
-
-        Adapted from the geomagc software and World Magnetic Model of the NOAA
-        Satellite and Information Service, National Geophysical Data Center
-        http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
-        """
-        crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
-        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
-
-        if point is None:
-            point = self.iface.mapCanvas().extent().center()
-        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
-
-        mag = GM.GeoMag(point_ll.y(), point_ll.x(), time=time)
-        return mag.dec
 
     def add_action(self, icon_path, text, callback,
                    enabled_flag=True, add_to_menu=True, add_to_toolbar=True,
@@ -353,13 +424,39 @@ class ReadSDB:
             parent=self.iface.mainWindow())
         self.editAction.setCheckable(True)
 
+        # Check database and set actions
+        self.check_db()
+
         # Connect site edit dialog
         self.dock.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset_site_edit)
         self.dock.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply_site_edit)
         self.dock.toolAdd.clicked.connect(self.add_data)
         self.dock.toolRemove.clicked.connect(self.remove_data)
-        # Check database and set actions
-        self.check_db()
+
+        self.siteSelection = self.manager.siteView.selectionModel()
+        self.siteSelection.currentRowChanged.connect(self.updateData)
+        self.manager.siteFind.setPlaceholderText('Search pattern')
+        self.manager.siteFind.returnPressed.connect(self.site_find)
+        self.manager.pushAddData.clicked.connect(self.add_data)
+        self.manager.pushDelData.clicked.connect(self.del_data)
+        # qcombobox workaround
+        self.manager.comboUnit.currentIndexChanged.connect(lambda: self.mapperdelegate.commitData.emit(self.manager.comboUnit))
+
+        self.structmodel.dataChanged.connect(self.struct_changed)
+
+        self.manager.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply)
+        self.manager.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset)
+
+        xcoord_val = QDoubleValidator(self.manager.xcoord)
+        xcoord_val.setDecimals(4)
+        ycoord_val = QDoubleValidator(self.manager.ycoord)
+        ycoord_val.setDecimals(4)
+        self.manager.xcoord.setValidator(xcoord_val)
+        self.manager.xcoord.setMaxLength(14)
+        self.manager.ycoord.setValidator(ycoord_val)
+        self.manager.ycoord.setMaxLength(14)
+
+        self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -375,6 +472,109 @@ class ReadSDB:
         # close db
         self.db.close()
 
+    def apply(self):
+        self.db.commit()
+        self.db.transaction()
+
+    def reset(self):
+        self.db.rollback()
+
+    def closeEvent(self, event):
+        self.db.rollback()
+
+    def struct_changed(self, left, right):
+        self.structmodel.submit()
+        self.structmodel.sort(1, Qt.AscendingOrder)
+        self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
+        self.structuresView.scrollTo(left, QAbstractItemView.EnsureVisible)
+
+    def add_data(self):
+        rec = self.datamodel.record()
+        row = self.siteSelection.currentIndex().row()
+        siteid = self.sitemodel.record(row).value('id')
+        rec.setValue(1, siteid)
+        rec.setValue(2, 1)
+        rec.setValue(3, 0)
+        rec.setValue(4, 0)
+        if not self.datamodel.insertRecord(-1, rec):
+            print(self.datamodel.lastError().text())
+        self.datamodel.select()
+        #self.datamodel.insertRow(self.model.rowCount())
+        self.manager.dataView.scrollToBottom()
+
+    def del_data(self):
+        self.datamodel.deleteRowFromTable(self.manager.dataView.currentIndex().row())
+        self.datamodel.select()
+
+    def updateData(self, selected, deselected):
+        self.manager.setWindowTitle('PySDB - current site {}'.format(selected.data()))
+        self.mapper.setCurrentModelIndex(selected)
+        self.datamodel.setFilter("structdata.id_sites={}".format(self.sitemodel.record(selected.row()).value("id")))
+        self.datamodel.select()
+
+    def site_find(self):
+        row = self.manager.siteView.currentIndex().row()
+        if row < self.sitemodel.rowCount() - 1:
+            start = self.sitemodel.index(row + 1, 2)
+        else:
+            start = self.sitemodel.index(0, 2)
+        matches = self.sitemodel.match(start, Qt.DisplayRole, self.manager.siteFind.text(), 2, Qt.MatchContains)
+        if matches:
+            index = matches[0]
+            self.manager.siteView.setCurrentIndex(index)
+        else:
+            start = self.sitemodel.index(0, 2)
+            matches = self.sitemodel.match(start, Qt.DisplayRole, self.manager.siteFind.text(), 2, Qt.MatchContains)
+            if matches:
+                index = matches[0]
+                self.manager.siteView.setCurrentIndex(index)
+
+    def check_site_layer(self):
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.editAction.setChecked(False)
+            self.editAction.setEnabled(False)
+            self.dock.lineSite.setText('')
+            self.dockmodel.setFilter("structdata.id_sites=-1")
+            self.dockmodel.select()
+
+    def calc_gc(self, point=None):
+        """Calculate Grid convergence for project CRS"""
+        crsSrc = QgsProject.instance().crs()
+        crsDst = QgsCoordinateReferenceSystem(4326)
+        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
+
+        if point is None:
+            point = self.iface.mapCanvas().extent().center()
+        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
+
+        if point_ll.y() < 89.9:
+            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() + 0.01)
+            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
+            gc = point.azimuth(point_north)
+        else:
+            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() - 0.01)
+            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
+            gc = point_north.azimuth(point)
+        return gc
+
+    def calc_md(self, point=None, time=date.today()):
+        """Calculate magnetic declination uising Christopher Weiss geomag library.
+
+        Adapted from the geomagc software and World Magnetic Model of the NOAA
+        Satellite and Information Service, National Geophysical Data Center
+        http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
+        """
+        crsSrc = QgsProject.instance().crs()
+        crsDst = QgsCoordinateReferenceSystem(4326)
+        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
+
+        if point is None:
+            point = self.iface.mapCanvas().extent().center()
+        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
+
+        mag = GM.GeoMag(point_ll.y(), point_ll.x(), time=time)
+        return mag.dec
+
     def sanitize(self, text):
         rtext = ''
         if text is not None:
@@ -383,13 +583,10 @@ class ReadSDB:
 
     def pysdb_manager(self):
         """Run PySDB manager"""
-        window = PySDBWindow()
-        window.readsdb = self
-        p = Path(self.settings.value("sdbname", type=str))
-        if not p.is_file():
-            p = None
-        window.openFileSDB(True, p)
-        window.show()
+        self.editAction.setChecked(False)
+        self.editSiteTool = None
+        self.iface.removeDockWidget(self.dock.dockWidget)
+        self.manager.show()
 
     def set_options(self):
         """Select database and set plugin options"""
@@ -616,33 +813,33 @@ class ReadSDB:
                 self.editSiteTool.featureIdentified.connect(self.on_site_edit)
                 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock.dockWidget)
                 self.dock.lineSite.setText('')
-                self.model.setFilter("structdata.id_sites=-1")
-                self.model.select()
+                self.dockmodel.setFilter("structdata.id_sites=-1")
+                self.dockmodel.select()
             else:
                 self.editSiteTool = None
                 self.iface.removeDockWidget(self.dock.dockWidget)
 
     def on_site_edit(self, feature):
         self.dock.lineSite.setText('{} - {}'.format(feature['name'], feature['unit']))
-        self.model.setFilter("structdata.id_sites={}".format(feature['id']))
-        self.model.select()
+        self.dockmodel.setFilter("structdata.id_sites={}".format(feature['id']))
+        self.dockmodel.select()
 
     def reset_site_edit(self):
-        self.model.revertAll()
-        self.model.select()
+        self.dockmodel.revertAll()
+        self.dockmodel.select()
 
     def apply_site_edit(self):
-        self.model.submitAll()
+        self.dockmodel.submitAll()
 
     def add_data(self):
-        # self.model.insertRow(self.model.rowCount())
-        rec = self.model.record()
-        siteid = int(self.model.filter().split('=')[1])
+        # self.dockmodel.insertRow(self.dockmodel.rowCount())
+        rec = self.dockmodel.record()
+        siteid = int(self.dockmodel.filter().split('=')[1])
         if siteid > 0:
             rec.setValue(rec.field(1).name(), siteid)
             rec.setValue(rec.field(2).name(), 0)
             rec.setValue(rec.field(3).name(), 0)
-            self.model.insertRecord(-1, rec)
+            self.dockmodel.insertRecord(-1, rec)
 
     def remove_data(self):
-        self.model.removeRow(self.dock.dataView.currentIndex().row())
+        self.dockmodel.removeRow(self.dock.dataView.currentIndex().row())
