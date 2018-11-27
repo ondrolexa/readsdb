@@ -51,6 +51,8 @@ import sys
 sys.path.insert(0, '/home/ondro/develrepo/apsg')
 from apsg import *
 
+PYSDB_VERSION = '3.0.5'
+
 SCHEMA_NEW = """PRAGMA auto_vacuum=0;
 PRAGMA default_cache_size=2000;
 PRAGMA encoding='UTF-8';
@@ -187,7 +189,7 @@ class ReadSDB:
                 raise AssertionError
             self.db = QSqlDatabase.addDatabase('QSQLITE')
             self.db.setDatabaseName(str(p))
-            # query = QSqlQuery()
+            self.query = QSqlQuery()
             self.db.open()
             # self.db.transaction()
             # Site model and view
@@ -686,6 +688,25 @@ class ReadSDB:
         # Run the dialog event loop
         self.options_dlg.exec_()
 
+    def get_add_unit(self, query, unitname):
+        if query.exec_("SELECT id FROM units WHERE name='{}'".format(unitname)):
+            query.first()
+            idunit = query.value(0)
+        else:
+            query.exec_("SELECT MAX(pos) FROM units")
+            query.first()
+            pos = query.value(0)
+            query.exec_("INSERT INTO units (pos,name) VALUES ({},'{}')".format(pos, feature[unit_field]))
+            idunit = query.lastInsertId()
+        return idunit
+
+    def add_update_site(self, query, idunit, name, x, y, desc, update=False):
+        if query.exec_("SELECT id FROM sites WHERE name='{}'".format(name)):
+            if update:
+                query.exec_("UPDATE sites SET id_units={}, x_coord={}, y_coord={}, description='{}' WHERE name='{}'".format(idunit, x, y, desc, name))
+        else:
+            query.exec_("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, name,  x, y, desc))
+
     def import_from_layer(self):
         dlg = ReadSDBImportLayer(self)
         result = dlg.exec_()
@@ -714,38 +735,27 @@ class ReadSDB:
                                 "Click Cancel to exit.",
                                 QMessageBox.Cancel)
                         return
+                    # process layer
+                    layer = dlg.layerCombo.currentLayer()
                     query = QSqlQuery()
                     for sql in SCHEMA_NEW.splitlines():
                         query.exec_(sql)
                     # Insert metadata
-                    query.exec_("INSERT INTO meta (name,value) VALUES ('version','{}')".format('3.0.5'))
-                    query.exec_("INSERT INTO meta (name,value) VALUES ('crs','{}')".format('EPSG:4326'))
+                    query.exec_("INSERT INTO meta (name,value) VALUES ('version','{}')".format(PYSDB_VERSION))
+                    query.exec_("INSERT INTO meta (name,value) VALUES ('crs','{}')".format(layer.crs().authid()))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('created','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('updated','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('accessed','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
                     # Insert sites and units
-                    layer = dlg.layerCombo.currentLayer()
                     features = layer.getFeatures()
                     for feature in features:
                         pt = feature.geometry().asPoint()
                         site_field = dlg.siteCombo.currentField()
                         unit_field = dlg.unitCombo.currentField()
                         desc_field = dlg.descCombo.currentField()
-                        idunit = 1
-                        if unit_field != '':
-                            if query.exec_("SELECT id FROM `units` WHERE name='{}'".format(feature[unit_field])):
-                                query.first()
-                                idunit = query.value(0)
-                            else:
-                                query.exec_("SELECT MAX(pos) FROM units")
-                                query.first()
-                                pos = query.value(0)
-                                query.exec_("INSERT INTO units (pos,name) VALUES ({},'{}')".format(pos, feature[unit_field]))
-                                idunit = query.lastInsertId()
-                        desc = ''
-                        if desc_field != '':
-                            desc = self.sanitize(str(feature[desc_field]))
-                        query.exec_("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, feature[site_field],  pt.x(), pt.y(), desc))
+                        idunit = 1 if unit_field != '' else self.get_add_unit(query, feature[unit_field])
+                        desc = '' if desc_field != '' else self.sanitize(str(feature[desc_field]))
+                        self.add_update_site(query, idunit, feature[site_field],  pt.x(), pt.y(), desc)
                     db.commit()
                     db.close()
                     self.settings.setValue("sdbname", str(p))
@@ -760,34 +770,11 @@ class ReadSDB:
                     site_field = dlg.siteCombo.currentField()
                     unit_field = dlg.unitCombo.currentField()
                     desc_field = dlg.descCombo.currentField()
-                    sel = self.conn.execute("SELECT * FROM sites WHERE name=?", (feature[site_field],)).fetchall()
-                    if sel:
-                        if dlg.checkBoxUpdate.isChecked():
-                            data = sel[0][0]
-                            data[sitecol['x']] = pt.x()
-                            data[sitecol['y']] = pt.y()
-                            if desc_field != '':
-                                data[sitecol['desc']] = self.sanitize(str(feature[desc_field]))
-                            if unit_field != '':
-                                unit = [-1, feature[unit_field], '']
-                                cur = self.db_addUnit(unit)
-                                if cur.rowcount > 0:
-                                    data[sitecol['id_units']] = cur.lastrowid
-                            self.db_updateSite(data)
-                    else:
-                        data = [feature[site_field], pt.x(), pt.y(), '', 1]
-                        if desc_field != '':
-                            data[-2] = self.sanitize(str(feature[desc_field]))
-                        if unit_field != '':
-                            sel = self.conn.execute("SELECT id FROM units WHERE name=?", (feature[unit_field],)).fetchall()
-                            if sel:
-                                data[-1] = sel[0][0]
-                            else:
-                                unit = [-1, feature[unit_field], '']
-                                cur = self.db_addUnit(unit)
-                                data[-1] = cur.lastrowid
-                        self.db_addSite(data)
-                self.rereadDatabase()
+                    idunit = 1 if unit_field != '' else self.get_add_unit(self.query, feature[unit_field])
+                    desc = '' if desc_field != '' else self.sanitize(str(feature[desc_field]))
+                    self.add_update_site(self.query, idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
+                self.check_db()
+                self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
 
     def create_layer(self, name, fields):
         """Create temporary point layer"""
