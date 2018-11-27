@@ -26,7 +26,6 @@ import os
 from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
-from qgis.core import *
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_options.ui'))
@@ -71,4 +70,3 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
     def store_date(self):
         self.readsdb.sdb.meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
         self.readsdb.iface.messageBar().pushSuccess('SDB Read', 'Date stored in SDB.')
-

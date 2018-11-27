@@ -127,21 +127,25 @@ class ReadSDB:
         # check SVG dirs
         readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
-        if readsdb_svg_path not in svg_paths:
-            QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
+        if svg_paths:
+            if readsdb_svg_path not in svg_paths:
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
+        else:
+            QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'ReadSDB_{}.qm'.format(locale))
+        if QSettings().value('locale/userLocale'):
+            locale = QSettings().value('locale/userLocale')[0:2]
+            locale_path = os.path.join(
+                self.plugin_dir,
+                'i18n',
+                'ReadSDB_{}.qm'.format(locale))
 
-        if os.path.exists(locale_path):
-            self.translator = QTranslator()
-            self.translator.load(locale_path)
+            if os.path.exists(locale_path):
+                self.translator = QTranslator()
+                self.translator.load(locale_path)
 
-            if qVersion() > '4.3.3':
-                QCoreApplication.installTranslator(self.translator)
+                if qVersion() > '4.3.3':
+                    QCoreApplication.installTranslator(self.translator)
 
         # Get the params from last session.
         self.settings = QSettings('LX', 'readsdb')
@@ -175,7 +179,6 @@ class ReadSDB:
         self.structures_dlg = ReadSDBStructuresDialog(self)
         self.plot_dlg = ReadSDBPlotDialog(self)
 
-        #
         QgsProject.instance().layerStore().layerRemoved.connect(self.check_site_layer)
 
         # Store sites layer
@@ -195,7 +198,7 @@ class ReadSDB:
             # Site model and view
             self.sitemodel = QSqlRelationalTableModel()
             self.sitemodel.setTable('sites')
-            #self.sitemodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            # self.sitemodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.sitemodel.setRelation(1, QSqlRelation('units', 'id', 'name'))
             self.sitemodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.sitemodel.setHeaderData(1, Qt.Horizontal, "Unit")
@@ -218,7 +221,7 @@ class ReadSDB:
             # Data model and view
             self.datamodel = QSqlRelationalTableModel()
             self.datamodel.setTable('structdata')
-            #self.datamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            # self.datamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.datamodel.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
             self.datamodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.datamodel.setHeaderData(1, Qt.Horizontal, "ID_Site")
@@ -238,7 +241,7 @@ class ReadSDB:
             # Unit model and view
             self.unitmodel = QSqlTableModel()
             self.unitmodel.setTable('units')
-            #self.unitmodel.setEditStrategy(QSqlTableModel.OnFieldChange)
+            # self.unitmodel.setEditStrategy(QSqlTableModel.OnFieldChange)
             self.unitmodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.unitmodel.setHeaderData(1, Qt.Horizontal, "Position")
             self.unitmodel.setHeaderData(2, Qt.Horizontal, "Name")
@@ -254,7 +257,7 @@ class ReadSDB:
             # Structures model and view
             self.structmodel = QSqlTableModel()
             self.structmodel.setTable('structype')
-            #self.structmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            # self.structmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.structmodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.structmodel.setHeaderData(1, Qt.Horizontal, "Position")
             self.structmodel.setHeaderData(2, Qt.Horizontal, "Structure")
@@ -266,7 +269,7 @@ class ReadSDB:
             self.structmodel.select()
             self.manager.structuresView.setModel(self.structmodel)
             self.manager.structuresView.hideColumn(0)
-            #self.manager.structuresView.hideColumn(1)
+            # self.manager.structuresView.hideColumn(1)
             self.manager.structuresView.horizontalHeader().moveSection(3, 6)
             self.manager.structuresView.horizontalHeader().moveSection(5, 3)
             self.manager.structuresView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
@@ -274,7 +277,7 @@ class ReadSDB:
             # Tags model and view
             self.tagsmodel = QSqlTableModel()
             self.tagsmodel.setTable('tags')
-            #self.tagsmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            # self.tagsmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.tagsmodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.tagsmodel.setHeaderData(1, Qt.Horizontal, "Position")
             self.tagsmodel.setHeaderData(2, Qt.Horizontal, "Name")
@@ -288,11 +291,11 @@ class ReadSDB:
             # Meta model and view
             self.metamodel = QSqlQueryModel()
             self.metamodel.setQuery('SELECT * from meta')
-            #self.metamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            # self.metamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
             self.metamodel.setHeaderData(0, Qt.Horizontal, "ID")
             self.metamodel.setHeaderData(1, Qt.Horizontal, "Name")
             self.metamodel.setHeaderData(2, Qt.Horizontal, "Value")
-            #self.metamodel.select()
+            # self.metamodel.select()
             self.manager.metaView.setModel(self.metamodel)
             self.manager.metaView.hideColumn(0)
             self.manager.metaView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -325,7 +328,7 @@ class ReadSDB:
             self.dock.dataView.hideColumn(1)
             # self.dock.dataView.horizontalHeader().moveSection(1, 3)
 
-            #connections
+            # connections
             self.siteSelection = self.manager.siteView.selectionModel()
             self.siteSelection.currentRowChanged.connect(self.updateData)
             self.structmodel.dataChanged.connect(self.struct_changed)
@@ -340,19 +343,18 @@ class ReadSDB:
             self.dbok = False
             for ac in self.actions[1:]:
                 ac.setDisabled(True)
-            #self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Reading database error'))
+            # self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Reading database error'))
         else:
             # Connect site edit dialog
             self.dock.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset_site_edit)
             self.dock.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply_site_edit)
-            self.dock.toolAdd.clicked.connect(self.add_data)
-            self.dock.toolRemove.clicked.connect(self.remove_data)
+            self.dock.toolAdd.clicked.connect(self.add_dock_data)
+            self.dock.toolRemove.clicked.connect(self.remove_dock_data)
 
-            
             self.manager.siteFind.setPlaceholderText(self.tr(u'Search pattern'))
             self.manager.siteFind.returnPressed.connect(self.site_find)
-            self.manager.pushAddData.clicked.connect(self.add_data)
-            self.manager.pushDelData.clicked.connect(self.del_data)
+            self.manager.pushAddData.clicked.connect(self.manager_add_data)
+            self.manager.pushDelData.clicked.connect(self.manager_del_data)
             # qcombobox workaround
             self.manager.comboUnit.currentIndexChanged.connect(lambda: self.mapperdelegate.commitData.emit(self.manager.comboUnit))
 
@@ -368,7 +370,7 @@ class ReadSDB:
             self.manager.ycoord.setValidator(ycoord_val)
             self.manager.ycoord.setMaxLength(14)
 
-            self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))            
+            self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -524,8 +526,6 @@ class ReadSDB:
         # Check database and set actions
         self.check_db()
 
-        
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -556,7 +556,7 @@ class ReadSDB:
         self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
         self.structuresView.scrollTo(left, QAbstractItemView.EnsureVisible)
 
-    def add_data(self):
+    def manager_add_data(self):
         rec = self.datamodel.record()
         row = self.siteSelection.currentIndex().row()
         siteid = self.sitemodel.record(row).value('id')
@@ -567,10 +567,10 @@ class ReadSDB:
         if not self.datamodel.insertRecord(-1, rec):
             print(self.datamodel.lastError().text())
         self.datamodel.select()
-        #self.datamodel.insertRow(self.model.rowCount())
+        # self.datamodel.insertRow(self.model.rowCount())
         self.manager.dataView.scrollToBottom()
 
-    def del_data(self):
+    def manager_del_data(self):
         self.datamodel.deleteRowFromTable(self.manager.dataView.currentIndex().row())
         self.datamodel.select()
 
@@ -705,7 +705,7 @@ class ReadSDB:
             if update:
                 query.exec_("UPDATE sites SET id_units={}, x_coord={}, y_coord={}, description='{}' WHERE name='{}'".format(idunit, x, y, desc, name))
         else:
-            query.exec_("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, name,  x, y, desc))
+            query.exec_("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, name, x, y, desc))
 
     def import_from_layer(self):
         dlg = ReadSDBImportLayer(self)
@@ -714,7 +714,7 @@ class ReadSDB:
             if dlg.checkBoxNew.isChecked():
                 fname, _ = QFileDialog.getSaveFileName(None, 'New database', '.', 'SDB database (*.sdb)')
                 if fname:
-                    #self.setCursor(Qt.WaitCursor)
+                    # self.setCursor(Qt.WaitCursor)
                     p = Path(fname)
                     if not p.suffix:
                         p = p.with_suffix('.sdb')
@@ -729,11 +729,11 @@ class ReadSDB:
                     db.setDatabaseName(str(p))
                     if not db.open():
                         QMessageBox.critical(None, "Cannot open database",
-                                "Unable to establish a database connection.\n"
-                                "This example needs SQLite support. Please read the Qt SQL "
-                                "driver documentation for information how to build it.\n\n"
-                                "Click Cancel to exit.",
-                                QMessageBox.Cancel)
+                                             "Unable to establish a database connection.\n"
+                                             "This example needs SQLite support. Please read the Qt SQL "
+                                             "driver documentation for information how to build it.\n\n"
+                                             "Click Cancel to exit.",
+                                             QMessageBox.Cancel)
                         return
                     # process layer
                     layer = dlg.layerCombo.currentLayer()
@@ -755,12 +755,12 @@ class ReadSDB:
                         desc_field = dlg.descCombo.currentField()
                         idunit = 1 if unit_field != '' else self.get_add_unit(query, feature[unit_field])
                         desc = '' if desc_field != '' else self.sanitize(str(feature[desc_field]))
-                        self.add_update_site(query, idunit, feature[site_field],  pt.x(), pt.y(), desc)
+                        self.add_update_site(query, idunit, feature[site_field], pt.x(), pt.y(), desc)
                     db.commit()
                     db.close()
                     self.settings.setValue("sdbname", str(p))
                     self.check_db()
-                    #self.unsetCursor()
+                    # self.unsetCursor()
                     self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
             else:
                 layer = dlg.layerCombo.currentLayer()
@@ -1000,7 +1000,7 @@ class ReadSDB:
     def apply_site_edit(self):
         self.dockmodel.submitAll()
 
-    def add_data(self):
+    def add_dock_data(self):
         # self.dockmodel.insertRow(self.dockmodel.rowCount())
         rec = self.dockmodel.record()
         siteid = int(self.dockmodel.filter().split('=')[1])
@@ -1010,5 +1010,5 @@ class ReadSDB:
             rec.setValue(rec.field(3).name(), 0)
             self.dockmodel.insertRecord(-1, rec)
 
-    def remove_data(self):
+    def remove_dock_data(self):
         self.dockmodel.removeRow(self.dock.dataView.currentIndex().row())
