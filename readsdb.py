@@ -332,8 +332,9 @@ class ReadSDB:
             self.siteSelection = self.manager.siteView.selectionModel()
             self.siteSelection.currentRowChanged.connect(self.updateData)
             self.structmodel.dataChanged.connect(self.struct_changed)
-
+            # This will be eliminated
             self.sdb = SDB(self.settings.value("sdbname", type=str))
+
             self.dbok = True
             for ac in self.actions:
                 ac.setEnabled(True)
@@ -539,6 +540,13 @@ class ReadSDB:
         del self.dock
         # close db
         self.db.close()
+        # remove svg path
+        readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
+        svg_paths = QgsSettings().value('svg/searchPathsForSVG')
+        if svg_paths:
+            if readsdb_svg_path in svg_paths:
+                svg_paths.remove(readsdb_svg_path)
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
 
     def apply(self):
         self.db.commit()
@@ -569,6 +577,13 @@ class ReadSDB:
         self.datamodel.select()
         # self.datamodel.insertRow(self.model.rowCount())
         self.manager.dataView.scrollToBottom()
+
+    def sdb_meta(self, name):
+        res = None
+        if self.query.exec_("SELECT value FROM meta WHERE name='{}'".format(name)):
+            self.query.first()
+            res = self.query.value(0)
+        return res
 
     def manager_del_data(self):
         self.datamodel.deleteRowFromTable(self.manager.dataView.currentIndex().row())
@@ -681,9 +696,9 @@ class ReadSDB:
         self.options_dlg.corr_md_auto.setChecked(self.settings.value("auto_md", type=bool))
         # set magnetic declination calendar
         try:
-            md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
+            md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
         except ValueError:
-            md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+            md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
         self.options_dlg.dateEdit.setDate(QDate(md_time.year, md_time.month, md_time.day))
         # Run the dialog event loop
         self.options_dlg.exec_()
@@ -779,7 +794,7 @@ class ReadSDB:
     def create_layer(self, name, fields):
         """Create temporary point layer"""
         crs = QgsCoordinateReferenceSystem()
-        proj = self.sdb.meta('crs')
+        proj = self.sdb_meta('crs')
         crs.createFromUserInput(proj)
         lyr_fields = QgsFields()
         for key in fields:
@@ -844,14 +859,21 @@ class ReadSDB:
         self.structures_dlg.show()
         # populate dialog
         self.structures_dlg.comboStructure.clear()
-        self.structures_dlg.comboStructure.addItems(self.sdb.structures())
+        self.query.exec_("SELECT structure FROM structype")
+        while self.query.next():
+            self.structures_dlg.comboStructure.addItem(query.value(0))
         self.structures_dlg.comboUnit.clear()
-        self.structures_dlg.comboUnit.addItems(['Any'] + self.sdb.units())
+        self.structures_dlg.comboUnit.addItem('Any')
+        self.query.exec_("SELECT name FROM units")
+        while self.query.next():
+            self.structures_dlg.comboUnit.addItem(query.value(0))
         self.structures_dlg.checkAverage.setChecked(False)
         self.structures_dlg.checkSelected.setEnabled(selected_enable)
         self.structures_dlg.checkSelected.setChecked(selected_enable)
         self.structures_dlg.listTags.clear()
-        self.structures_dlg.listTags.addItems(self.sdb.tags())
+        self.query.exec_("SELECT name FROM tags")
+        while self.query.next():
+            self.structures_dlg.listTags.addItem(query.value(0))
         # Run the dialog event loop
         result = self.structures_dlg.exec_()
         # See if OK was pressed
@@ -872,9 +894,9 @@ class ReadSDB:
             xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
             # declination calculated for creation date of sdb database
             try:
-                md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
+                md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
             except ValueError:
-                md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+                md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
             layer._is_planar = int(self.sdb.is_planar(struct))
