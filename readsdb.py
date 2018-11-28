@@ -109,6 +109,57 @@ site_fields = {'id': QVariant.Int,
                }
 
 
+def sdb_make_select(structs=None, sites=None, units=None, tags=None):
+    w = []
+    if structs:
+        if isinstance(structs, str):
+            w.append("structype.structure='%s'" % structs)
+        elif isinstance(structs, (list, tuple)):
+            u = " OR ".join(
+                ["structype.structure='{}'".format(struct) for struct in structs]
+            )
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword structs must be list or string.")
+    if sites:
+        if isinstance(sites, str):
+            w.append("sites.name='{}'".format(sites))
+        elif isinstance(sites, (list, tuple)):
+            u = " OR ".join(["sites.name='{}'".format(site) for site in sites])
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword sites must be list or string.")
+    if units:
+        if isinstance(units, str):
+            w.append("unit='{}'".format(units))
+        elif isinstance(units, (list, tuple)):
+            u = " OR ".join(["unit='{}'".format(unit) for unit in units])
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword units must be list or string.")
+    if tags:
+        if isinstance(tags, str):
+            tagw = ["tags LIKE '%{}%'".format(tags)]
+        elif isinstance(tags, (list, tuple)):
+            u = " AND ".join(["tags LIKE '%{}%'".format(tag) for tag in tags])
+            tagw = ["({})".format(u)]
+        else:
+            raise ValueError("Keyword tags must be list or string.")
+        insel = SDB._SELECT
+        if w:
+            insel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
+        else:
+            insel += " GROUP BY structdata.id"
+        sel = "SELECT * FROM ({}) WHERE {}".format(insel, " AND ".join(tagw))
+    else:
+        sel = SDB._SELECT
+        if w:
+            sel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
+        else:
+            sel += " GROUP BY structdata.id"
+    return sel
+
+
 class ReadSDB:
     """QGIS Plugin Implementation."""
 
@@ -804,23 +855,20 @@ class ReadSDB:
 
     def read_sites(self):
         """Read sites from SDB database"""
-        SEL = """SELECT sites.id as id, sites.name as name, units.name as unit,
-                 sites.x_coord as x, sites.y_coord as y, sites.description as description
-                 FROM sites INNER JOIN units ON units.id = sites.id_units
-                 ORDER BY sites.id"""
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
             QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
 
             layer = self.create_layer('Sites', site_fields)
             provider = layer.dataProvider()
             layer.startEditing()
-            for rec in self.sdb.execsql(SEL):
+            self.query.exec_("SELECT sites.id as id, sites.name as name, units.name as unit, sites.x_coord as x, sites.y_coord as y, sites.description as description FROM sites INNER JOIN units ON units.id = sites.id_units ORDER BY sites.id")
+            while self.query.next():
                 feature = QgsFeature()
                 feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(rec['x'], rec['y'])))
-                feature.setAttributes([rec['id'],
-                                       rec['name'],
-                                       rec['unit'],
-                                       self.sanitize(rec['description'])
+                feature.setAttributes([self.query.value('id'),
+                                       self.query.value('name'),
+                                       self.query.value('unit'),
+                                       self.sanitize(self.query.value('description'))
                                        ])
                 provider.addFeatures([feature])
 
@@ -861,19 +909,19 @@ class ReadSDB:
         self.structures_dlg.comboStructure.clear()
         self.query.exec_("SELECT structure FROM structype")
         while self.query.next():
-            self.structures_dlg.comboStructure.addItem(query.value(0))
+            self.structures_dlg.comboStructure.addItem(self.query.value(0))
         self.structures_dlg.comboUnit.clear()
         self.structures_dlg.comboUnit.addItem('Any')
         self.query.exec_("SELECT name FROM units")
         while self.query.next():
-            self.structures_dlg.comboUnit.addItem(query.value(0))
+            self.structures_dlg.comboUnit.addItem(self.query.value(0))
         self.structures_dlg.checkAverage.setChecked(False)
         self.structures_dlg.checkSelected.setEnabled(selected_enable)
         self.structures_dlg.checkSelected.setChecked(selected_enable)
         self.structures_dlg.listTags.clear()
         self.query.exec_("SELECT name FROM tags")
         while self.query.next():
-            self.structures_dlg.listTags.addItem(query.value(0))
+            self.structures_dlg.listTags.addItem(self.query.value(0))
         # Run the dialog event loop
         result = self.structures_dlg.exec_()
         # See if OK was pressed
@@ -899,7 +947,9 @@ class ReadSDB:
                 md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
-            layer._is_planar = int(self.sdb.is_planar(struct))
+            self.query.exec_("SELECT planar FROM structype WHERE structure='{}'".format(struct))
+            self.query.first()
+            layer._is_planar = self.query.value(0)
             unit = str(self.structures_dlg.comboUnit.currentText())
             if unit == 'Any':
                 unit = None
@@ -909,13 +959,17 @@ class ReadSDB:
             if selected_enable and self.structures_dlg.checkSelected.isChecked():
                 sites = [f['name'] for f in self.sites_layer.selectedFeatures()]
             else:
-                sites = self.sdb.sites(structs=struct, units=unit, tags=tags)
+                sites = []
+                self.query.exec_(sdb_make_select(structs=struct, units=unit, tags=tags))
+                while self.query.next():
+                    sites.append(self.query.value('name'))
             # get scale for label offset (linear needs more)
             off_coef = 1.0 if layer.customProperty('SDB_planar') else 4.5
 
             # create features from data rows
             for site in sites:
                 # do site select to get data
+                # TODO self.query.exec_(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
                 dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
                 if self.structures_dlg.checkAverage.isChecked() and len(dt) > 1:
