@@ -46,8 +46,6 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
         self.readsdb = readsdb
         self.settings = self.readsdb.settings
 
-        self.sdbinfo(self.settings.value("sdbname", type=str))
-
     def meta(self, name):
         res = self.conn.execute("SELECT value FROM meta WHERE name=?", (name,)).fetchall()
         if res:
@@ -99,8 +97,6 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.dbok = True
         except sqlite3.OperationalError:
             self.sdb_info_basic.clear()
-            self.sdb_info_data.clear()
-            self.sdb_info_tags.clear()
             self.dbok = False
 
     def accept(self):

@@ -51,7 +51,7 @@ import sys
 sys.path.insert(0, '/home/ondro/develrepo/apsg')
 from apsg import Fol, Lin, Group
 
-PYSDB_VERSION = '3.0.5'
+SDB_VERSION = '3.0.6'
 
 SCHEMA_NEW = """PRAGMA auto_vacuum=0;
 PRAGMA default_cache_size=2000;
@@ -235,6 +235,7 @@ class ReadSDB:
         QgsProject.instance().layerStore().layerRemoved.connect(self.check_site_layer)
 
         # Store sites layer
+        self.dbok = False
         self.sites_layer = None
 
     def check_db(self):
@@ -251,7 +252,7 @@ class ReadSDB:
             if not self.query.exec_("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags LIMIT 1"):
                 self.settings.setValue("sdbname", "")
                 raise ConnectionError
-            # self.db.transaction()
+            self.db.transaction()
             # Site model and view
             self.sitemodel = QSqlRelationalTableModel()
             self.sitemodel.setTable('sites')
@@ -541,6 +542,14 @@ class ReadSDB:
             add_to_toolbar=False,
             parent=self.iface.mainWindow())
 
+        icon_path = ':/plugins/readsdb/icons/icon_lyr.png'
+        self.add_action(
+            icon_path,
+            text=self.tr(u'Create/Update SDB from layer...'),
+            callback=self.import_from_layer,
+            add_to_toolbar=False,
+            parent=self.iface.mainWindow())
+
         icon_path = ':/plugins/readsdb/icons/icon_man.png'
         self.add_action(
             icon_path,
@@ -590,14 +599,6 @@ class ReadSDB:
             parent=self.iface.mainWindow())
         self.editAction.setCheckable(True)
 
-        icon_path = ':/plugins/readsdb/icons/icon_lyr.png'
-        self.add_action(
-            icon_path,
-            text=self.tr(u'Create/Update SDB from layer...'),
-            callback=self.import_from_layer,
-            add_to_toolbar=False,
-            parent=self.iface.mainWindow())
-
         # Check database and set actions
         self.check_db()
 
@@ -613,7 +614,11 @@ class ReadSDB:
         # remove dock
         del self.dock
         # close db
-        self.db.close()
+        if hasattr(self, 'db'):
+            self.db.rollback()
+            self.query.exec_("UPDATE meta SET value = '{}' WHERE name = 'accessed'".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+            self.db.commit()
+            self.db.close()
         # remove svg path
         readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
@@ -623,14 +628,14 @@ class ReadSDB:
                 QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
 
     def apply(self):
+        self.query.exec_("UPDATE meta SET value = '{}' WHERE name = 'updated'".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
         self.db.commit()
         self.db.transaction()
+        self.metamodel.setQuery('SELECT * from meta')
 
     def reset(self):
         self.db.rollback()
-
-    def closeEvent(self, event):
-        self.reset()
+        self.metamodel.setQuery('SELECT * from meta')
 
     def struct_changed(self, left, right):
         self.structmodel.submit()
@@ -696,8 +701,9 @@ class ReadSDB:
             self.editAction.setEnabled(False)
             if hasattr(self, 'dock'):
                 self.dock.lineSite.setText('')
-            self.dockmodel.setFilter("structdata.id_sites=-1")
-            self.dockmodel.select()
+            if hasattr(self, 'dockmodel'):
+                self.dockmodel.setFilter("structdata.id_sites=-1")
+                self.dockmodel.select()
 
     def calc_gc(self, point=None):
         """Calculate Grid convergence for project CRS"""
@@ -745,6 +751,8 @@ class ReadSDB:
 
     def sdb_connect(self):
         self.connect_dlg.show()
+        # Populate info
+        self.connect_dlg.sdbinfo(self.settings.value("sdbname", type=str))
         # Run the dialog event loop
         if self.connect_dlg.exec_():
             if hasattr(self, 'db'):
@@ -762,6 +770,10 @@ class ReadSDB:
         self.editSiteTool = None
         self.iface.removeDockWidget(self.dock.dockWidget)
         self.manager.show()
+        if not self.manager.exec_():
+            #res = u"Sites:{} Data:{} Units:{} Structures:{} Tags:{}".format(self.sitemodel.isDirty(), self.datamodel.isDirty(), self.unitmodel.isDirty(), self.structmodel.isDirty(), self.tagsmodel.isDirty())
+            #self.iface.messageBar().pushSuccess('SDB Read', res)
+            pass
 
     def set_options(self):
         """Select database and set plugin options"""
@@ -795,7 +807,8 @@ class ReadSDB:
         return idunit
 
     def add_update_site(self, query, idunit, name, x, y, desc, update=False):
-        if query.exec_("SELECT id FROM sites WHERE name='{}'".format(name)):
+        query.exec_("SELECT id FROM sites WHERE name='{}'".format(name))
+        if query.first():
             if update:
                 query.exec_("UPDATE sites SET id_units={}, x_coord={}, y_coord={}, description='{}' WHERE name='{}'".format(idunit, x, y, desc, name))
         else:
@@ -803,6 +816,9 @@ class ReadSDB:
 
     def import_from_layer(self):
         dlg = ReadSDBImportLayer(self)
+        if not self.dbok:
+            dlg.checkBoxNew.setChecked(True)
+            dlg.checkBoxUpdate.setEnabled(False)
         result = dlg.exec_()
         if result:
             if dlg.checkBoxNew.isChecked():
@@ -835,7 +851,7 @@ class ReadSDB:
                     for sql in SCHEMA_NEW.splitlines():
                         query.exec_(sql)
                     # Insert metadata
-                    query.exec_("INSERT INTO meta (name,value) VALUES ('version','{}')".format(PYSDB_VERSION))
+                    query.exec_("INSERT INTO meta (name,value) VALUES ('version','{}')".format(SDB_VERSION))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('crs','{}')".format(layer.crs().authid()))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('created','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
                     query.exec_("INSERT INTO meta (name,value) VALUES ('updated','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
@@ -847,8 +863,8 @@ class ReadSDB:
                         site_field = dlg.siteCombo.currentField()
                         unit_field = dlg.unitCombo.currentField()
                         desc_field = dlg.descCombo.currentField()
-                        idunit = 1 if unit_field != '' else self.get_add_unit(query, feature[unit_field])
-                        desc = '' if desc_field != '' else self.sanitize(str(feature[desc_field]))
+                        idunit = 1 if unit_field == '' else self.get_add_unit(query, feature[unit_field])
+                        desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
                         self.add_update_site(query, idunit, feature[site_field], pt.x(), pt.y(), desc)
                     db.commit()
                     db.close()
@@ -857,18 +873,19 @@ class ReadSDB:
                     # self.unsetCursor()
                     self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
             else:
-                layer = dlg.layerCombo.currentLayer()
-                features = layer.getFeatures()
-                for feature in features:
-                    pt = feature.geometry().asPoint()
-                    site_field = dlg.siteCombo.currentField()
-                    unit_field = dlg.unitCombo.currentField()
-                    desc_field = dlg.descCombo.currentField()
-                    idunit = 1 if unit_field != '' else self.get_add_unit(self.query, feature[unit_field])
-                    desc = '' if desc_field != '' else self.sanitize(str(feature[desc_field]))
-                    self.add_update_site(self.query, idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
-                self.check_db()
-                self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+                if self.dbok:
+                    layer = dlg.layerCombo.currentLayer()
+                    features = layer.getFeatures()
+                    for feature in features:
+                        pt = feature.geometry().asPoint()
+                        site_field = dlg.siteCombo.currentField()
+                        unit_field = dlg.unitCombo.currentField()
+                        desc_field = dlg.descCombo.currentField()
+                        idunit = 1 if unit_field == '' else self.get_add_unit(self.query, feature[unit_field])
+                        desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
+                        self.add_update_site(self.query, idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
+                    self.check_db()
+                    self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
 
     def create_layer(self, name, fields):
         """Create temporary point layer"""
