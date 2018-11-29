@@ -31,7 +31,12 @@ from qgis.core import *
 import matplotlib
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
-from apsg import *
+
+# Need latest APSG
+import sys
+sys.path.insert(0, '/home/ondro/develrepo/apsg')
+from apsg import StereoNet, Group, Fol, Lin
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -51,15 +56,9 @@ class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
 
     def __init__(self, parent=None):
-        # fig, self.axes = plt.subplots()
-        # t = np.arange(0.0, 3.0, 0.01)
-        # s = np.sin(2 * np.pi * t)
-        # self.axes.plot(t, s)
         self.net = StereoNet()
-
         FigureCanvas.__init__(self, self.net.fig)
         self.setParent(parent)
-
         FigureCanvas.setSizePolicy(self,
                                    QtWidgets.QSizePolicy.Expanding,
                                    QtWidgets.QSizePolicy.Expanding)

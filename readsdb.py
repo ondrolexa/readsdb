@@ -49,7 +49,7 @@ from .resources import *
 # Need latest APSG
 import sys
 sys.path.insert(0, '/home/ondro/develrepo/apsg')
-from apsg import *
+from apsg import Fol, Lin, Group
 
 PYSDB_VERSION = '3.0.5'
 
@@ -86,6 +86,8 @@ CREATE INDEX IF NOT EXISTS `ix_attach_id_structdata_linear` ON `attach` (`id_str
 INSERT INTO structype VALUES (1, 1,'S', 'Default planar feature', 35, 13, 1);
 INSERT INTO structype VALUES (2, 2, 'L', 'Default linear feature', 78, 13, 0);
 INSERT INTO units VALUES (1, 1, 'Default', 'Default unit');"""
+
+SDB_SELECT = "SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags"
 
 GM = geomag.GeoMag()
 
@@ -145,14 +147,14 @@ def sdb_make_select(structs=None, sites=None, units=None, tags=None):
             tagw = ["({})".format(u)]
         else:
             raise ValueError("Keyword tags must be list or string.")
-        insel = SDB._SELECT
+        insel = SDB_SELECT
         if w:
             insel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
         else:
             insel += " GROUP BY structdata.id"
         sel = "SELECT * FROM ({}) WHERE {}".format(insel, " AND ".join(tagw))
     else:
-        sel = SDB._SELECT
+        sel = SDB_SELECT
         if w:
             sel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
         else:
@@ -240,11 +242,15 @@ class ReadSDB:
             p = Path(self.settings.value("sdbname", type=str))
             if not p.is_file():
                 self.settings.setValue("sdbname", "")
-                raise AssertionError
+                raise FileNotFoundError
             self.db = QSqlDatabase.addDatabase('QSQLITE')
             self.db.setDatabaseName(str(p))
             self.query = QSqlQuery()
             self.db.open()
+            # Check tables and relations
+            if not self.query.exec_("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags LIMIT 1"):
+                self.settings.setValue("sdbname", "")
+                raise ConnectionError
             # self.db.transaction()
             # Site model and view
             self.sitemodel = QSqlRelationalTableModel()
@@ -320,7 +326,7 @@ class ReadSDB:
             self.structmodel.select()
             self.manager.structuresView.setModel(self.structmodel)
             self.manager.structuresView.hideColumn(0)
-            # self.manager.structuresView.hideColumn(1)
+            self.manager.structuresView.hideColumn(1)
             self.manager.structuresView.horizontalHeader().moveSection(3, 6)
             self.manager.structuresView.horizontalHeader().moveSection(5, 3)
             self.manager.structuresView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
@@ -383,19 +389,36 @@ class ReadSDB:
             self.siteSelection = self.manager.siteView.selectionModel()
             self.siteSelection.currentRowChanged.connect(self.updateData)
             self.structmodel.dataChanged.connect(self.struct_changed)
-            # This will be eliminated
-            self.sdb = SDB(self.settings.value("sdbname", type=str))
+
+            # update meta coordinate system
+            if self.sdb_meta('crs') is None:
+                proj4 = self.sdb_meta('proj4')
+                if proj4 is None:
+                    raise ValueError
+                crs = QgsCoordinateReferenceSystem()
+                crs.createFromProj4(self.query.value(0))
+                self.sdb_meta('crs', crs.authid())
+                self.metamodel.setQuery('SELECT * from meta')
 
             self.dbok = True
             for ac in self.actions:
                 ac.setEnabled(True)
             if self.sites_layer is None:
                 self.editAction.setEnabled(False)
-        except (AssertionError, sqlite3.OperationalError):
+        except FileNotFoundError:
             self.dbok = False
-            for ac in self.actions[1:]:
+            for ac in self.actions[2:]:
                 ac.setDisabled(True)
-            # self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Reading database error'))
+        except ConnectionError:
+            self.dbok = False
+            for ac in self.actions[2:]:
+                ac.setDisabled(True)
+            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Not correct SDB database'))
+        except ValueError:
+            self.dbok = False
+            for ac in self.actions[2:]:
+                ac.setDisabled(True)
+            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Not crs or proj4 in meta table'))
         else:
             # Connect site edit dialog
             self.dock.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset_site_edit)
@@ -629,12 +652,16 @@ class ReadSDB:
         # self.datamodel.insertRow(self.model.rowCount())
         self.manager.dataView.scrollToBottom()
 
-    def sdb_meta(self, name):
-        res = None
-        if self.query.exec_("SELECT value FROM meta WHERE name='{}'".format(name)):
-            self.query.first()
-            res = self.query.value(0)
-        return res
+    def sdb_meta(self, name, value=None):
+        if value is None:
+            self.query.exec_("SELECT value FROM meta WHERE name='{}'".format(name))
+            return self.query.value(0) if self.query.first() else None
+        else:
+            self.query.exec_("SELECT value FROM meta WHERE name='{}'".format(name))
+            if self.query.first():
+                self.query.exec_("UPDATE meta SET value = '{}' WHERE name = '{}'".format(value, name))
+            else:
+                self.query.exec_("INSERT INTO meta (name,value) VALUES ('{}','{}')".format(name, value))
 
     def manager_del_data(self):
         self.datamodel.deleteRowFromTable(self.manager.dataView.currentIndex().row())
@@ -667,7 +694,8 @@ class ReadSDB:
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
             self.editAction.setChecked(False)
             self.editAction.setEnabled(False)
-            self.dock.lineSite.setText('')
+            if hasattr(self, 'dock'):
+                self.dock.lineSite.setText('')
             self.dockmodel.setFilter("structdata.id_sites=-1")
             self.dockmodel.select()
 
@@ -712,7 +740,7 @@ class ReadSDB:
     def sanitize(self, text):
         rtext = ''
         if text is not None:
-            rtext = text.replace('\r\n', ' ').replace('\n', ' ')
+            rtext = str(text).replace('\r\n', ' ').replace('\n', ' ')
         return rtext
 
     def sdb_connect(self):
@@ -748,7 +776,7 @@ class ReadSDB:
         # set magnetic declination calendar
         try:
             md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
-        except ValueError:
+        except TypeError:
             md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
         self.options_dlg.dateEdit.setDate(QDate(md_time.year, md_time.month, md_time.day))
         # Run the dialog event loop
@@ -845,8 +873,7 @@ class ReadSDB:
     def create_layer(self, name, fields):
         """Create temporary point layer"""
         crs = QgsCoordinateReferenceSystem()
-        proj = self.sdb_meta('crs')
-        crs.createFromUserInput(proj)
+        crs.createFromUserInput(self.sdb_meta('crs'))
         lyr_fields = QgsFields()
         for key in fields:
             lyr_fields.append(QgsField(key, fields[key]))
@@ -864,7 +891,7 @@ class ReadSDB:
             self.query.exec_("SELECT sites.id as id, sites.name as name, units.name as unit, sites.x_coord as x, sites.y_coord as y, sites.description as description FROM sites INNER JOIN units ON units.id = sites.id_units ORDER BY sites.id")
             while self.query.next():
                 feature = QgsFeature()
-                feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(rec['x'], rec['y'])))
+                feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(self.query.value('x'), self.query.value('y'))))
                 feature.setAttributes([self.query.value('id'),
                                        self.query.value('name'),
                                        self.query.value('unit'),
@@ -963,27 +990,39 @@ class ReadSDB:
                 self.query.exec_(sdb_make_select(structs=struct, units=unit, tags=tags))
                 while self.query.next():
                     sites.append(self.query.value('name'))
+                sites = sorted(list(set(sites)))  # IS IT OK?
             # get scale for label offset (linear needs more)
-            off_coef = 1.0 if layer.customProperty('SDB_planar') else 4.5
+            off_coef = 1.0 if layer._is_planar else 4.5
 
             # create features from data rows
             for site in sites:
                 # do site select to get data
-                # TODO self.query.exec_(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
-                dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit, tags=tags))
+                self.query.exec_(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
-                if self.structures_dlg.checkAverage.isChecked() and len(dt) > 1:
-                    g = self.sdb.group(struct, sites=site, units=unit, tags=tags)
-                    rec = dict(dt[0])
+                if self.structures_dlg.checkAverage.isChecked():
+                    self.query.first()
+                    azi = [self.query.value('azimuth')]
+                    inc = [self.query.value('inclination')]
+                    rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'structure', 'planar', 'description', 'tags']}
+                    while self.query.next():
+                        azi.append(self.query.value('azimuth'))
+                        inc.append(self.query.value('inclination'))
                     if layer._is_planar:
-                        azi, inc = g.ortensor.eigenfols[0].dd
+                        g = Group.from_array(azi, inc, typ=Fol)
+                        dd = g.ortensor.eigenfols[0].dd
                     else:
-                        azi, inc = g.ortensor.eigenlins[0].dd
-                    rec['azimuth'] = float(azi)
-                    rec['inclination'] = float(inc)
-                    rec['description'] = 'Averaged from {} data'.format(len(dt))
+                        g = Group.from_array(azi, inc, typ=Lin)
+                        dd = g.ortensor.eigenlins[0].dd
+                    rec['azimuth'] = float(dd[0])
+                    rec['inclination'] = float(dd[1])
+                    rec['description'] = 'Averaged from {} data'.format(len(g))
                     rec['tags'] = None
                     dt = [rec]
+                else:
+                    dt = []
+                    while self.query.next():
+                        rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'azimuth', 'inclination', 'structure', 'planar', 'description', 'tags']}
+                        dt.append(rec)
                 # add features
                 for rec in dt:
                     feature = QgsFeature()

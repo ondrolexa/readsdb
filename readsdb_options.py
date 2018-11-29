@@ -68,5 +68,6 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
         self.angle_md.setText('{:g}'.format(dec))
 
     def store_date(self):
-        self.readsdb.sdb.meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
+        self.readsdb.sdb_meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
+        self.readsdb.metamodel.setQuery('SELECT * from meta')
         self.readsdb.iface.messageBar().pushSuccess('SDB Read', 'Date stored in SDB.')
