@@ -696,10 +696,16 @@ class ReadSDB:
         self.manager.unitView.scrollToBottom()
 
     def manager_del_unit(self):
-        # TODO Need check what to do with existing sites
-        self.unitmodel.deleteRowFromTable(self.manager.unitView.currentIndex().row())
-        self.unitmodel.select()
-        self.sitemodel.select()
+        row = self.manager.unitView.currentIndex().row()
+        rec = self.unitmodel.record(row)
+        unitid = rec.value(0)
+        self.query.exec("SELECT name FROM sites WHERE id_units={}".format(unitid))
+        if self.query.first():
+            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Current unit is in use e.g. site ' + self.query.value(0)))
+        else:
+            self.unitmodel.deleteRowFromTable(row)
+            self.unitmodel.select()
+            self.sitemodel.select()
 
     def manager_add_planar(self):
         self.query.exec("SELECT MAX(pos) FROM structype")
@@ -735,11 +741,17 @@ class ReadSDB:
         self.manager.structuresView.scrollToBottom()
 
     def manager_del_structure(self):
-        # TODO Need check what to do with existing data
-        self.structmodel.deleteRowFromTable(self.manager.structuresView.currentIndex().row())
-        self.structmodel.select()
-        self.datamodel.relationModel(2).select()
-        self.datamodel.select()
+        row = self.manager.structuresView.currentIndex().row()
+        rec = self.structmodel.record(row)
+        strucid = rec.value(0)
+        self.query.exec("SELECT sites.name as name FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units  WHERE structdata.id_structype = {} LIMIT 1".format(strucid))
+        if self.query.first():
+            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Current structure is in use e.g. site ' + self.query.value(0)))
+        else:
+            self.structmodel.deleteRowFromTable(row)
+            self.structmodel.select()
+            self.datamodel.relationModel(2).select()
+            self.datamodel.select()
 
     def manager_set_crs(self):
         crs_dlg = QgsProjectionSelectionDialog()
