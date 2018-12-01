@@ -221,10 +221,8 @@ class ReadSDB:
         # create toolbar
         self.toolbar = self.iface.addToolBar(u'ReadSDB')
         self.toolbar.setObjectName(u'ReadSDB')
-        # create site dock
-        self.dock = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_datadock.ui'))
         # create manager dialog
-        self.manager = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/readsdb_manager.ui'))
+        self.manager = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_manager.ui'))
 
         # Create the dialogs (after translation) and keep reference
         self.connect_dlg = ReadSDBConnectDialog(self)
@@ -309,6 +307,8 @@ class ReadSDB:
             self.unitmodel.setHeaderData(3, Qt.Horizontal, "Description")
             self.unitmodel.select()
             self.manager.unitView.setModel(self.unitmodel)
+            self.manager.unitView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.unitView.setSelectionMode(QTableView.SingleSelection)
             self.manager.unitView.hideColumn(0)
             self.manager.unitView.hideColumn(1)
             self.manager.unitView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
@@ -329,10 +329,12 @@ class ReadSDB:
             self.structmodel.setSort(1, Qt.AscendingOrder)
             self.structmodel.select()
             self.manager.structuresView.setModel(self.structmodel)
+            self.manager.structuresView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.structuresView.setSelectionMode(QTableView.SingleSelection)
             self.manager.structuresView.hideColumn(0)
             self.manager.structuresView.hideColumn(1)
-            self.manager.structuresView.horizontalHeader().moveSection(3, 6)
-            self.manager.structuresView.horizontalHeader().moveSection(5, 3)
+            # self.manager.structuresView.horizontalHeader().moveSection(3, 6)
+            # self.manager.structuresView.horizontalHeader().moveSection(5, 3)
             self.manager.structuresView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
             self.manager.structuresView.verticalHeader().setVisible(False)
             # Tags model and view
@@ -345,6 +347,8 @@ class ReadSDB:
             self.tagsmodel.setHeaderData(3, Qt.Horizontal, "Description")
             self.tagsmodel.select()
             self.manager.tagsView.setModel(self.tagsmodel)
+            self.manager.tagsView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.tagsView.setSelectionMode(QTableView.SingleSelection)
             self.manager.tagsView.hideColumn(0)
             self.manager.tagsView.hideColumn(1)
             self.manager.tagsView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
@@ -358,6 +362,8 @@ class ReadSDB:
             self.metamodel.setHeaderData(2, Qt.Horizontal, "Value")
             # self.metamodel.select()
             self.manager.metaView.setModel(self.metamodel)
+            self.manager.metaView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.metaView.setSelectionMode(QTableView.SingleSelection)
             self.manager.metaView.hideColumn(0)
             self.manager.metaView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
             self.manager.metaView.verticalHeader().setVisible(False)
@@ -371,23 +377,6 @@ class ReadSDB:
             self.mapper.addMapping(self.manager.siteDesc, self.sitemodel.fieldIndex("description"))
             self.mapper.addMapping(self.manager.comboUnit, 1)
             self.mapper.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
-            # Dock model and view
-            self.dockmodel = QSqlRelationalTableModel()
-            self.dockmodel.setTable('structdata')
-            self.dockmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
-            self.dockmodel.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
-            self.dockmodel.setHeaderData(0, Qt.Horizontal, "ID")
-            self.dockmodel.setHeaderData(1, Qt.Horizontal, "ID_Site")
-            self.dockmodel.setHeaderData(2, Qt.Horizontal, "Structure")
-            self.dockmodel.setHeaderData(3, Qt.Horizontal, "Azi")
-            self.dockmodel.setHeaderData(4, Qt.Horizontal, "Inc")
-            self.dockmodel.setHeaderData(5, Qt.Horizontal, "Description")
-
-            self.dock.dataView.setModel(self.dockmodel)
-            self.dock.dataView.setItemDelegate(QSqlRelationalDelegate(self.dock.dataView))
-            self.dock.dataView.hideColumn(0)
-            self.dock.dataView.hideColumn(1)
-            # self.dock.dataView.horizontalHeader().moveSection(1, 3)
 
             # connections
             self.siteSelection = self.manager.siteView.selectionModel()
@@ -406,6 +395,8 @@ class ReadSDB:
 
             # qcombobox workaround
             self.manager.comboUnit.currentIndexChanged.connect(lambda: self.mapperdelegate.commitData.emit(self.manager.comboUnit))
+
+            self.manager.setWindowTitle(p.name)
             self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
 
             self.dbok = True
@@ -583,11 +574,6 @@ class ReadSDB:
         self.check_db()
 
         # Connect site edit dialog
-        self.dock.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset_site_edit)
-        self.dock.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply_site_edit)
-        self.dock.toolAdd.clicked.connect(self.add_dock_data)
-        self.dock.toolRemove.clicked.connect(self.remove_dock_data)
-
         self.manager.siteFind.setPlaceholderText(self.tr(u'Search pattern'))
         self.manager.siteFind.returnPressed.connect(self.site_find)
         self.manager.pushAddData.clicked.connect(self.manager_add_data)
@@ -622,7 +608,7 @@ class ReadSDB:
         # remove the toolbar
         del self.toolbar
         # remove dock
-        del self.dock
+        del self.manager
         # close db
         if hasattr(self, 'db'):
             self.db.rollback()
@@ -645,14 +631,21 @@ class ReadSDB:
 
     def reset(self):
         self.db.rollback()
+        self.db.transaction()
+        self.sitemodel.select()
+        self.datamodel.select()
+        self.unitmodel.select()
+        self.structmodel.select()
+        self.tagsmodel.select()
+        self.datamodel.relationModel(2).select()
         self.metamodel.setQuery('SELECT * from meta')
 
     def struct_changed(self, left, right):
-        #self.structmodel.submit()
-        #self.structmodel.sort(1, Qt.AscendingOrder)
-        #self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
+        # self.structmodel.submit()
+        # self.structmodel.sort(1, Qt.AscendingOrder)
+        # self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
         self.datamodel.relationModel(2).select()
-        #self.manager.structuresView.scrollTo(left, QAbstractItemView.EnsureVisible)
+        # self.manager.structuresView.scrollTo(left, QAbstractItemView.EnsureVisible)
 
     def sdb_meta(self, name, value=None):
         if value is None:
@@ -754,13 +747,13 @@ class ReadSDB:
             self.datamodel.select()
 
     def manager_set_crs(self):
-        crs_dlg = QgsProjectionSelectionDialog()
+        crs_dlg = QgsProjectionSelectionDialog(self.manager)
         if crs_dlg.exec():
             self.sdb_meta('crs', crs_dlg.crs().authid())
             self.metamodel.setQuery('SELECT * from meta')
 
     def updateData(self, selected, deselected):
-        #self.manager.setWindowTitle(self.tr(u'Current site') + ' {}'.format(selected.data()))
+        # self.manager.setWindowTitle(self.tr(u'Current site') + ' {}'.format(selected.data()))
         self.mapper.setCurrentModelIndex(selected)
         self.datamodel.setFilter("structdata.id_sites={}".format(self.sitemodel.record(selected.row()).value("id")))
         self.datamodel.select()
@@ -786,11 +779,6 @@ class ReadSDB:
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
             self.editAction.setChecked(False)
             self.editAction.setEnabled(False)
-            if hasattr(self, 'dock'):
-                self.dock.lineSite.setText('')
-            if hasattr(self, 'dockmodel'):
-                self.dockmodel.setFilter("structdata.id_sites=-1")
-                self.dockmodel.select()
 
     def calc_gc(self, point=None):
         """Calculate Grid convergence for project CRS"""
@@ -847,21 +835,12 @@ class ReadSDB:
                 self.db.close()
                 self.editSiteTool = None
                 self.editAction.setChecked(False)
-                self.iface.removeDockWidget(self.dock.dockWidget)
             self.check_db()
             self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
 
     def pysdb_manager(self):
-        """Run PySDB manager"""
-        self.editAction.setChecked(False)
-        self.editSiteTool = None
-        self.iface.removeDockWidget(self.dock.dockWidget)
-        self.manager.setWindowTitle(self.db.databaseName())
-        #self.manager.show()
-        if not self.manager.exec():
-            #res = u"Sites:{} Data:{} Units:{} Structures:{} Tags:{}".format(self.sitemodel.isDirty(), self.datamodel.isDirty(), self.unitmodel.isDirty(), self.structmodel.isDirty(), self.tagsmodel.isDirty())
-            #self.iface.messageBar().pushSuccess('SDB Read', res)
-            pass
+        """Add PySDB manager"""
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.manager)
 
     def set_options(self):
         """Select database and set plugin options"""
@@ -912,6 +891,7 @@ class ReadSDB:
             if dlg.checkBoxNew.isChecked():
                 fname, _ = QFileDialog.getSaveFileName(None, 'New database', '.', 'SDB database (*.sdb)')
                 if fname:
+                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
                     # self.setCursor(Qt.WaitCursor)
                     p = Path(fname)
                     if not p.suffix:
@@ -922,7 +902,6 @@ class ReadSDB:
                         self.db.close()
                         self.editSiteTool = None
                         self.editAction.setChecked(False)
-                        self.iface.removeDockWidget(self.dock.dockWidget)
                     db = QSqlDatabase.addDatabase('QSQLITE')
                     db.setDatabaseName(str(p))
                     if not db.open():
@@ -962,6 +941,7 @@ class ReadSDB:
                     self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
             else:
                 if self.dbok:
+                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
                     layer = dlg.layerCombo.currentLayer()
                     features = layer.getFeatures()
                     for feature in features:
@@ -974,6 +954,9 @@ class ReadSDB:
                         self.add_update_site(self.query, idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
                     self.check_db()
                     self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+            # recursively walk back the cursor to a pointer
+            while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
+                QgsApplication.instance().restoreOverrideCursor()
 
     def create_layer(self, name, fields):
         """Create temporary point layer"""
@@ -1075,7 +1058,7 @@ class ReadSDB:
             # declination calculated for creation date of sdb database
             try:
                 md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
-            except ValueError:
+            except (ValueError, TypeError):
                 md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
@@ -1105,24 +1088,24 @@ class ReadSDB:
                 self.query.exec(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
                 if self.structures_dlg.checkAverage.isChecked():
-                    self.query.first()
-                    azi = [self.query.value('azimuth')]
-                    inc = [self.query.value('inclination')]
-                    rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'structure', 'planar', 'description', 'tags']}
-                    while self.query.next():
-                        azi.append(self.query.value('azimuth'))
-                        inc.append(self.query.value('inclination'))
-                    if layer._is_planar:
-                        g = Group.from_array(azi, inc, typ=Fol)
-                        dd = g.ortensor.eigenfols[0].dd
-                    else:
-                        g = Group.from_array(azi, inc, typ=Lin)
-                        dd = g.ortensor.eigenlins[0].dd
-                    rec['azimuth'] = float(dd[0])
-                    rec['inclination'] = float(dd[1])
-                    rec['description'] = 'Averaged from {} data'.format(len(g))
-                    rec['tags'] = None
-                    dt = [rec]
+                    if self.query.first():
+                        azi = [self.query.value('azimuth')]
+                        inc = [self.query.value('inclination')]
+                        rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'structure', 'planar', 'description', 'tags']}
+                        while self.query.next():
+                            azi.append(self.query.value('azimuth'))
+                            inc.append(self.query.value('inclination'))
+                        if layer._is_planar:
+                            g = Group.from_array(azi, inc, typ=Fol)
+                            dd = g.ortensor.eigenfols[0].dd
+                        else:
+                            g = Group.from_array(azi, inc, typ=Lin)
+                            dd = g.ortensor.eigenlins[0].dd
+                        rec['azimuth'] = float(dd[0])
+                        rec['inclination'] = float(dd[1])
+                        rec['description'] = 'Averaged from {} data'.format(len(g))
+                        rec['tags'] = None
+                        dt = [rec]
                 else:
                     dt = []
                     while self.query.next():
@@ -1200,35 +1183,11 @@ class ReadSDB:
                 self.editSiteTool.setLayer(self.sites_layer)
                 self.iface.mapCanvas().setMapTool(self.editSiteTool)
                 self.editSiteTool.featureIdentified.connect(self.on_site_edit)
-                self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock.dockWidget)
-                self.dock.lineSite.setText('')
-                self.dockmodel.setFilter("structdata.id_sites=-1")
-                self.dockmodel.select()
             else:
                 self.editSiteTool = None
-                self.iface.removeDockWidget(self.dock.dockWidget)
 
     def on_site_edit(self, feature):
-        self.dock.lineSite.setText('{} - {}'.format(feature['name'], feature['unit']))
-        self.dockmodel.setFilter("structdata.id_sites={}".format(feature['id']))
-        self.dockmodel.select()
-
-    def reset_site_edit(self):
-        self.dockmodel.revertAll()
-        self.dockmodel.select()
-
-    def apply_site_edit(self):
-        self.dockmodel.submitAll()
-
-    def add_dock_data(self):
-        # self.dockmodel.insertRow(self.dockmodel.rowCount())
-        rec = self.dockmodel.record()
-        siteid = int(self.dockmodel.filter().split('=')[1])
-        if siteid > 0:
-            rec.setValue(rec.field(1).name(), siteid)
-            rec.setValue(rec.field(2).name(), 0)
-            rec.setValue(rec.field(3).name(), 0)
-            self.dockmodel.insertRecord(-1, rec)
-
-    def remove_dock_data(self):
-        self.dockmodel.removeRow(self.dock.dataView.currentIndex().row())
+        matches = self.sitemodel.match(self.sitemodel.index(0, 2), Qt.DisplayRole, feature['name'], 2, Qt.MatchExactly)
+        if matches:
+            index = matches[0]
+            self.manager.siteView.setCurrentIndex(index)
