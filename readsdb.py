@@ -46,10 +46,14 @@ from qgis.gui import QgsMapToolIdentifyFeature, QgsProjectionSelectionDialog
 # Initialize Qt resources from file resources.py
 from .resources import *
 
-# Need latest APSG
-import sys
-sys.path.insert(0, '/home/ondro/develrepo/apsg')
-from apsg import Fol, Lin, Group
+try:
+    # Need latest APSG
+    import sys
+    sys.path.insert(0, '/home/ondro/develrepo/apsg')
+    from apsg import Fol, Lin, Group
+    apsg_check = True
+except:
+    apsg_check = False
 
 SDB_VERSION = '3.0.6'
 
@@ -505,6 +509,13 @@ class ReadSDB:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
+        # check apsg
+        if not apsg_check:
+            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'APSG python package need to be installed.'))
+            self.unload()
+            return
+
+
         icon_path = ':/plugins/readsdb/icons/icon_sdb.png'
         self.add_action(
             icon_path,
@@ -606,9 +617,11 @@ class ReadSDB:
                 action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        del self.toolbar
+        if hasattr(self, 'toolbar'):
+            del self.toolbar
         # remove dock
-        del self.manager
+        if hasattr(self, 'manager'):
+            del self.manager
         # close db
         if hasattr(self, 'db'):
             self.db.rollback()
