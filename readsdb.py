@@ -32,6 +32,7 @@ from .geomag import geomag
 import os
 from datetime import date, datetime
 from math import cos, sin, pi
+import sqlite3
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
 from PyQt5.QtGui import QIcon, QCursor
@@ -42,9 +43,9 @@ from qgis.core import *
 from .resources import *
 
 # Need latest APSG
-import sys
-sys.path.insert(0, '/home/ondro/develrepo/apsg')
-from apsg import *
+#import sys
+#sys.path.insert(0, '/home/ondro/develrepo/apsg')
+from apsg import SDB
 
 GM = geomag.GeoMag()
 
@@ -85,8 +86,11 @@ class ReadSDB:
         # check SVG dirs
         readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
-        if readsdb_svg_path not in svg_paths:
-            QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
+        if svg_paths is None:
+            QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
+        else:
+            if readsdb_svg_path not in svg_paths:
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -104,7 +108,7 @@ class ReadSDB:
         # Get the params from last session.
         self.settings = QSettings("readsdb")
         if self.settings.value("gui/offset") is None:
-            self.settings.setValue("gui/offset", 0)
+            self.settings.setValue("gui/offset", 1.5)
         if self.settings.value("gui/angle_gc") is None:
             self.settings.setValue("gui/angle_gc", 0)
         if self.settings.value("gui/angle_md") is None:
@@ -490,8 +494,8 @@ class ReadSDB:
                     delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("gui/auto_md", type=bool) else self.settings.value("gui/angle_md", type=float)
                     rotation = rec['azimuth'] + delta
                     # calculate label offset
-                    offx = off_coef * self.settings.value("gui/offset", type=int) * sin(rotation * pi / 180.0)
-                    offy = -off_coef * self.settings.value("gui/offset", type=int) * cos(rotation * pi / 180.0)
+                    offx = off_coef * self.settings.value("gui/offset", type=float) * sin(rotation * pi / 180.0)
+                    offy = -off_coef * self.settings.value("gui/offset", type=float) * cos(rotation * pi / 180.0)
                     atts = [ix, rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
                             rec['structure'], rec['tags'], self.sanitize(rec['description']),
                             rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)]

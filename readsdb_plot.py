@@ -31,11 +31,12 @@ from qgis.core import *
 import matplotlib
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
-from apsg import *
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+
+from apsg import *
 
 # qhull workaroud
 import platform

@@ -9,16 +9,27 @@ The plugin cosists of following functionalities:
 3) Contains basic set of svg symbols used by structural geologists.
 4) Plot selected data on Stereonet using [APSG](https://github.com/ondrolexa/apsg) python package for structural geologists.
 
-**Install instructions and further funcionalities are under active developement.**
+**Install instructions and further funcionalities are under active development.**
 
 #### Dependency requirements
 
-**Note**:All dependencies must be installed within QGIS 3 python environment_
+**Note**:All dependencies must be installed within QGIS 3 python environment:
 
   - **`Numpy`**
   - **`Scipy`**
   - **`Matplotlib`**
   - **`APSG`** >= 0.6.0 version
+
+On Debian-like Linux distros use apt
+
+    sudo apt install python3-numpy python3-matplotlib python3-scipy
+
+and install APSG in QGIS 3 Python console
+
+    >>> import subprocess
+    >>> subprocess.check_output(['pip3', 'install', '--no-deps', '--user', 'apsg'])
+
+Restart QGIS and enjoy!
 
 ### Screenshot
 

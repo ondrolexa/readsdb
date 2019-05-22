@@ -29,8 +29,8 @@ from PyQt5.QtCore import Qt, QFileInfo
 from qgis.core import QgsCoordinateReferenceSystem
 
 # Need latest APSG
-import sys
-sys.path.insert(0, '/home/ondro/develrepo/apsg')
+#import sys
+#sys.path.insert(0, '/home/ondro/develrepo/apsg')
 from apsg import SDB
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(

@@ -52,7 +52,7 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             self.settings.setValue("gui/angle_gc", float(self.angle_gc.text()))
             self.settings.setValue("gui/angle_md", float(self.angle_md.text()))
-            self.settings.setValue("gui/offset", int(self.offset.text()))
+            self.settings.setValue("gui/offset", float(self.offset.text()))
             self.settings.setValue("gui/auto_gc", bool(self.corr_gc_auto.isChecked()))
             self.settings.setValue("gui/auto_md", bool(self.corr_md_auto.isChecked()))
             super(ReadSDBOptionsDialog, self).accept()
