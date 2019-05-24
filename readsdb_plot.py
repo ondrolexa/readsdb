@@ -92,7 +92,10 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
         self.net.grid = self.checkGrid.isChecked()
         self.net.cla()
         for idx, layer in self.data_layers[::-1]:  # plot in right order
-            features = layer.getFeatures()
+            if layer.selectedFeatureCount():
+                features = layer.getSelectedFeatures()
+            else:
+                features = layer.getFeatures()
             # Create data Group
             if layer._is_planar:
                 g = Group([Fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
