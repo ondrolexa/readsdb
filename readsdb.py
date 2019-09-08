@@ -1100,6 +1100,7 @@ class ReadSDB:
                 # do site select to get data
                 self.query.exec(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
+                dt = []
                 if self.structures_dlg.checkAverage.isChecked():
                     if self.query.first():
                         azi = [self.query.value('azimuth')]
@@ -1120,7 +1121,6 @@ class ReadSDB:
                         rec['tags'] = None
                         dt = [rec]
                 else:
-                    dt = []
                     while self.query.next():
                         rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'azimuth', 'inclination', 'structure', 'planar', 'description', 'tags']}
                         dt.append(rec)
