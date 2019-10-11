@@ -140,11 +140,11 @@ class ReadSDB:
         try:
             self.sdb = SDB(self.settings.value("gui/sdbname", type=str))
             self.dbok = True
-            for ac in self.actions[2:]:
+            for ac in self.actions[1:]:
                 ac.setEnabled(True)
         except (AssertionError, sqlite3.OperationalError):
             self.dbok = False
-            for ac in self.actions[2:]:
+            for ac in self.actions[1:]:
                 ac.setDisabled(True)
 
     # noinspection PyMethodMayBeStatic

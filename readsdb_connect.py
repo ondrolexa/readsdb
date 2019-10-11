@@ -68,6 +68,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.sdb_info_basic.clear()
             self.sdb_info_data.clear()
             self.sdb_info_tags.clear()
+            self.sdbname.clear()
             self.dbok = False
 
     def accept(self):
