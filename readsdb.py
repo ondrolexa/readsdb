@@ -90,7 +90,8 @@ class ReadSDB:
             QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
         else:
             if readsdb_svg_path not in svg_paths:
-                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
+                svg_paths.append(readsdb_svg_path)
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -318,6 +319,12 @@ class ReadSDB:
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+        # remove svg path
+        readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
+        svg_paths = QgsSettings().value('svg/searchPathsForSVG')
+        if readsdb_svg_path in svg_paths:
+            svg_paths.remove(readsdb_svg_path)
+            QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
 
     def sanitize(self, text):
         rtext = ''
