@@ -186,7 +186,8 @@ class ReadSDB:
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
         if svg_paths:
             if readsdb_svg_path not in svg_paths:
-                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths + [readsdb_svg_path])
+                svg_paths.append(readsdb_svg_path)
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
         else:
             QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
         # initialize locale
@@ -236,6 +237,7 @@ class ReadSDB:
 
         # logging
         self.log = QgsApplication.messageLog()
+        self.bar = self.iface.messageBar()
 
         QgsProject.instance().layerStore().layerRemoved.connect(self.check_site_layer)
 
@@ -416,12 +418,12 @@ class ReadSDB:
             self.dbok = False
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Not correct SDB database'))
+            self.bar.pushWarning('SDB Read', self.tr(u'Not correct SDB database'))
         except ValueError:
             self.dbok = False
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Not CRS or Proj4 in meta table'))
+            self.bar.pushWarning('SDB Read', self.tr(u'Not CRS or Proj4 in meta table'))
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -511,7 +513,7 @@ class ReadSDB:
 
         # check apsg
         if not apsg_check:
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'APSG python package need to be installed.'))
+            self.bar.pushWarning('SDB Read', self.tr(u'APSG python package need to be installed.'))
             self.unload()
             return
 
@@ -707,7 +709,7 @@ class ReadSDB:
         unitid = rec.value(0)
         self.query.exec("SELECT name FROM sites WHERE id_units={}".format(unitid))
         if self.query.first():
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Current unit is in use e.g. site ' + self.query.value(0)))
+            self.bar.pushWarning('SDB Read', self.tr(u'Current unit is in use e.g. site ' + self.query.value(0)))
         else:
             self.unitmodel.deleteRowFromTable(row)
             self.unitmodel.select()
@@ -752,7 +754,7 @@ class ReadSDB:
         strucid = rec.value(0)
         self.query.exec("SELECT sites.name as name FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units  WHERE structdata.id_structype = {} LIMIT 1".format(strucid))
         if self.query.first():
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Current structure is in use e.g. site ' + self.query.value(0)))
+            self.bar.pushWarning('SDB Read', self.tr(u'Current structure is in use e.g. site ' + self.query.value(0)))
         else:
             self.structmodel.deleteRowFromTable(row)
             self.structmodel.select()
@@ -874,19 +876,23 @@ class ReadSDB:
         # Run the dialog event loop
         self.options_dlg.exec()
 
-    def get_add_unit(self, query, unitname):
-        if query.exec("SELECT id FROM units WHERE name='{}'".format(unitname)):
-            query.first()
+    def get_add_unit(self, unitname, query=None):
+        if query is None:
+            query = self.query
+        query.exec("SELECT id FROM units WHERE name='{}'".format(unitname))
+        if query.first():
             idunit = query.value(0)
         else:
             query.exec("SELECT MAX(pos) FROM units")
             query.first()
             pos = query.value(0)
-            query.exec("INSERT INTO units (pos,name) VALUES ({},'{}')".format(pos + 1, feature[unit_field]))
+            query.exec("INSERT INTO units (pos,name) VALUES ({},'{}')".format(pos + 1, unitname))
             idunit = query.lastInsertId()
         return idunit
 
-    def add_update_site(self, query, idunit, name, x, y, desc, update=False):
+    def add_update_site(self, idunit, name, x, y, desc, update=False, query=None):
+        if query is None:
+            query = self.query
         query.exec("SELECT id FROM sites WHERE name='{}'".format(name))
         if query.first():
             if update:
@@ -927,6 +933,9 @@ class ReadSDB:
                         return
                     # process layer
                     layer = dlg.layerCombo.currentLayer()
+                    site_field = dlg.siteCombo.currentField()
+                    unit_field = dlg.unitCombo.currentField()
+                    desc_field = dlg.descCombo.currentField()
                     query = QSqlQuery()
                     for sql in SCHEMA_NEW.splitlines():
                         query.exec(sql)
@@ -940,33 +949,31 @@ class ReadSDB:
                     features = layer.getFeatures()
                     for feature in features:
                         pt = feature.geometry().asPoint()
-                        site_field = dlg.siteCombo.currentField()
-                        unit_field = dlg.unitCombo.currentField()
-                        desc_field = dlg.descCombo.currentField()
-                        idunit = 1 if unit_field == '' else self.get_add_unit(query, feature[unit_field])
+                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field], query=query)
                         desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
-                        self.add_update_site(query, idunit, feature[site_field], pt.x(), pt.y(), desc)
+                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, query=query)
                     db.commit()
                     db.close()
                     self.settings.setValue("sdbname", str(p))
                     self.check_db()
                     # self.unsetCursor()
-                    self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
+                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
             else:
                 if self.dbok:
                     QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
                     layer = dlg.layerCombo.currentLayer()
+                    site_field = dlg.siteCombo.currentField()
+                    unit_field = dlg.unitCombo.currentField()
+                    desc_field = dlg.descCombo.currentField()
                     features = layer.getFeatures()
                     for feature in features:
                         pt = feature.geometry().asPoint()
-                        site_field = dlg.siteCombo.currentField()
-                        unit_field = dlg.unitCombo.currentField()
-                        desc_field = dlg.descCombo.currentField()
-                        idunit = 1 if unit_field == '' else self.get_add_unit(self.query, feature[unit_field])
+                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
                         desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
-                        self.add_update_site(self.query, idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
+                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
+                    self.apply()
                     self.check_db()
-                    self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
@@ -1015,11 +1022,11 @@ class ReadSDB:
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
             if layer.featureCount() > 0:
-                self.iface.messageBar().pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'sites read successfully'))
+                self.bar.pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'sites read successfully'))
             else:
-                self.iface.messageBar().pushWarning('SDB Read', self.tr(u'There are no sites in database'))
+                self.bar.pushWarning('SDB Read', self.tr(u'There are no sites in database'))
         else:
-            self.iface.messageBar().pushWarning('SDB Read', self.tr(u'Sites layer already exists.'))
+            self.bar.pushWarning('SDB Read', self.tr(u'Sites layer already exists.'))
 
     def read_structures(self):
         """Read structures from SDB"""
@@ -1154,9 +1161,9 @@ class ReadSDB:
                 layer.triggerRepaint()
                 # add to project
                 QgsProject.instance().addMapLayer(layer)
-                self.iface.messageBar().pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'structures read successfully'))
+                self.bar.pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'structures read successfully'))
             else:
-                self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'No structures found. Choose different criteria'))
+                self.bar.pushSuccess('SDB Read', self.tr(u'No structures found. Choose different criteria'))
 
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
@@ -1188,7 +1195,7 @@ class ReadSDB:
     def edit_site(self):
         """Select database and set plugin options"""
         if self.sites_layer not in QgsProject.instance().mapLayers().values():
-            self.iface.messageBar().pushSuccess('SDB Read', self.tr(u'You have to read localities before use this tool.'))
+            self.bar.pushSuccess('SDB Read', self.tr(u'You have to read localities before use this tool.'))
             self.editAction.setChecked(False)
         else:
             if self.editAction.isChecked():
