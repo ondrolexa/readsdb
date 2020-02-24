@@ -62,6 +62,9 @@ class ReadSDBOpenDialog(QtWidgets.QDialog, FORM_CLASS):
     def sdbinfo(self, filename):
         """Populate dialog with current values"""
         self.sdbname.setText(filename)
+        self.sdb_info_basic.setRowCount(0)
+        self.sdb_info_basic.setColumnCount(2)
+        self.sdb_info_basic.setHorizontalHeaderLabels(['name', 'value'])
         try:
             self.conn = sqlite3.connect(filename)
             self.conn.row_factory = sqlite3.Row
@@ -75,9 +78,6 @@ class ReadSDBOpenDialog(QtWidgets.QDialog, FORM_CLASS):
             crs = QgsCoordinateReferenceSystem()
             crs.createFromUserInput(res)
             # basic
-            self.sdb_info_basic.setRowCount(0)
-            self.sdb_info_basic.setColumnCount(2)
-            self.sdb_info_basic.setHorizontalHeaderLabels(['name', 'value'])
             self.add_basic_data("PySDB database version", self.meta('version'))
             self.add_basic_data("PySDB database CRS", res)
             self.add_basic_data("CRS parsed by QGIS", crs.description())
@@ -97,7 +97,7 @@ class ReadSDBOpenDialog(QtWidgets.QDialog, FORM_CLASS):
             self.dbok = True
             self.conn.close()
         except sqlite3.OperationalError:
-            self.sdb_info_basic.clear()
+            #self.sdb_info_basic.clear()
             self.dbok = False
 
     def accept(self):

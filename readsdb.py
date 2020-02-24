@@ -253,7 +253,7 @@ class ReadSDB:
                 raise FileNotFoundError
             if not hasattr(self, 'db'):
                 self.db = QSqlDatabase.addDatabase('QSQLITE')
-                self.db.setDatabaseName(str(p))
+            self.db.setDatabaseName(str(p))
             self.db.open()
             self.query = QSqlQuery()
             # Check tables and relations
@@ -624,7 +624,23 @@ class ReadSDB:
         self.dbok = False
         for ac in self.actions[3:]:
             ac.setDisabled(True)
-
+        try:
+            p = Path(self.settings.value("sdbname", type=str))
+            if not p.is_file():
+                self.settings.setValue("sdbname", "")
+                raise FileNotFoundError
+            conn = sqlite3.connect(str(p))
+            conn.row_factory = sqlite3.Row
+            conn.execute("pragma encoding='UTF-8'")
+            dtsel = conn.execute("SELECT * FROM (SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags  GROUP BY structdata.id)").fetchall()
+            res = conn.execute("SELECT value FROM meta WHERE name=?", ('crs',)).fetchall()
+            if not res:
+                res = conn.execute("SELECT value FROM meta WHERE name=?", ('proj4',)).fetchall()
+                if not res:
+                    raise sqlite3.OperationalError
+            conn.close()
+        except:
+            self.actions[2].setDisabled(True)
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -855,11 +871,17 @@ class ReadSDB:
         return rtext
 
     def sdb_open(self):
-        self.open_dlg.show()
+        #self.open_dlg.show()
         # Populate info
         self.open_dlg.sdbinfo(self.settings.value("sdbname", type=str))
         # Run the dialog event loop
-        self.open_dlg.exec()
+        if self.open_dlg.exec():
+            self.connectedAction.setChecked(False)
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
+            self.dbok = False
+            self.actions[2].setDisabled(False)
+            for ac in self.actions[3:]:
+                ac.setDisabled(True)
 
     def sdb_connect(self):
         if self.connectedAction.isChecked():
@@ -867,7 +889,8 @@ class ReadSDB:
             self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
             self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_discon.png'))
         else:
-            self.db.close()
+            if self.db.isOpen():
+                self.db.close()
             self.editSiteTool = None
             self.editAction.setChecked(False)
             self.dbok = False
@@ -988,21 +1011,20 @@ class ReadSDB:
                     # self.unsetCursor()
                     self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
             else:
-                if self.dbok:
-                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
-                    layer = dlg.layerCombo.currentLayer()
-                    site_field = dlg.siteCombo.currentField()
-                    unit_field = dlg.unitCombo.currentField()
-                    desc_field = dlg.descCombo.currentField()
-                    features = layer.getFeatures()
-                    for feature in features:
-                        pt = feature.geometry().asPoint()
-                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
-                        desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
-                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
-                    self.apply()
-                    self.check_db()
-                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+                QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
+                layer = dlg.layerCombo.currentLayer()
+                site_field = dlg.siteCombo.currentField()
+                unit_field = dlg.unitCombo.currentField()
+                desc_field = dlg.descCombo.currentField()
+                features = layer.getFeatures()
+                for feature in features:
+                    pt = feature.geometry().asPoint()
+                    idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
+                    desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
+                    self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
+                self.apply()
+                self.check_db()
+                self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
