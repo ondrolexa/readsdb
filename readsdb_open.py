@@ -29,13 +29,13 @@ from PyQt5.QtCore import Qt, QFileInfo
 from qgis.core import QgsCoordinateReferenceSystem
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui/readsdb_connect.ui'))
+    os.path.dirname(__file__), 'ui/readsdb_open.ui'))
 
 
-class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
+class ReadSDBOpenDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, readsdb, parent=None):
         """Constructor."""
-        super(ReadSDBConnectDialog, self).__init__(parent, Qt.WindowStaysOnTopHint)
+        super(ReadSDBOpenDialog, self).__init__(parent, Qt.WindowStaysOnTopHint)
         # Set up the user interface from Designer.
         # After setupUI you can access any designer object by doing
         # self.<objectname>, and you can use autoconnect slots - see
@@ -95,6 +95,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
             self.sdb_info_basic.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
             self.sdb_info_basic.resizeColumnsToContents()
             self.dbok = True
+            self.conn.close()
         except sqlite3.OperationalError:
             self.sdb_info_basic.clear()
             self.dbok = False
@@ -102,7 +103,7 @@ class ReadSDBConnectDialog(QtWidgets.QDialog, FORM_CLASS):
     def accept(self):
         if self.dbok:
             self.settings.setValue("sdbname", self.sdbname.text())
-            super(ReadSDBConnectDialog, self).accept()
+            super(ReadSDBOpenDialog, self).accept()
         else:
             QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Please specify correct SDB database'))
 

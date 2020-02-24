@@ -13,10 +13,26 @@
    height="1052.3622047"
    id="svg2"
    version="1.1"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    sodipodi:docname="icons.svg">
   <defs
      id="defs4">
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect937"
+       is_visible="true" />
+    <inkscape:path-effect
+       effect="simplify"
+       id="path-effect935"
+       is_visible="true"
+       steps="1"
+       threshold="0.00980583"
+       smooth_angles="360"
+       helper_size="0"
+       simplify_individual_paths="false"
+       simplify_just_coalesce="false"
+       simplifyindividualpaths="false"
+       simplifyJustCoalesce="false" />
     <style
        id="style876"
        type="text/css">
@@ -31,9 +47,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.44731957"
-     inkscape:cx="-151.24615"
-     inkscape:cy="453.8457"
+     inkscape:zoom="0.6326054"
+     inkscape:cx="831.27289"
+     inkscape:cy="641.71593"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -41,10 +57,10 @@
      inkscape:snap-bbox="true"
      inkscape:bbox-nodes="true"
      inkscape:bbox-paths="true"
-     inkscape:window-width="1920"
-     inkscape:window-height="1043"
-     inkscape:window-x="1920"
-     inkscape:window-y="0"
+     inkscape:window-width="1864"
+     inkscape:window-height="1016"
+     inkscape:window-x="56"
+     inkscape:window-y="27"
      inkscape:window-maximized="1"
      showguides="true"
      inkscape:guide-bbox="true" />
@@ -516,14 +532,13 @@
        inkscape:export-ydpi="21.690001">
       <g
          id="Layer_x0020_1">
-  <path
-   id="path880"
-   d="m 0.02098,3.76 c 0,-2.0689 1.6752,-3.7391 3.7409,-3.7391 2.0657,0 3.7391,1.6745 3.7391,3.7391 0,2.0646 -1.6711,3.7409 -3.7391,3.7409 -2.068,0 -3.7409,-1.672 -3.7409,-3.7409 z m 0.43697,0 c 0,1.8284 1.4754,3.3039 3.3039,3.3039 1.8284,0 3.3021,-1.4769 3.3021,-3.3039 0,-1.827 -1.4752,-3.3021 -3.3021,-3.3021 -1.827,0 -3.3039,1.4737 -3.3039,3.3021 z m 2.9469,0.00178 c 0,0.19213 0.16377,0.35525 0.35525,0.35525 0.19148,0 0.35527,-0.16272 0.35527,-0.35525 0,-0.19253 -0.16213,-0.35527 -0.35527,-0.35527 -0.19314,0 -0.35525,0.16314 -0.35525,0.35527 z"
-   class="fil0 str0"
-   inkscape:connector-curvature="0"
-   style="fill:#2b2a29;stroke:#2b2a29;stroke-width:0.43542412" />
-
- </g>
+        <path
+           id="path880"
+           d="m 0.02098,3.76 c 0,-2.0689 1.6752,-3.7391 3.7409,-3.7391 2.0657,0 3.7391,1.6745 3.7391,3.7391 0,2.0646 -1.6711,3.7409 -3.7391,3.7409 -2.068,0 -3.7409,-1.672 -3.7409,-3.7409 z m 0.43697,0 c 0,1.8284 1.4754,3.3039 3.3039,3.3039 1.8284,0 3.3021,-1.4769 3.3021,-3.3039 0,-1.827 -1.4752,-3.3021 -3.3021,-3.3021 -1.827,0 -3.3039,1.4737 -3.3039,3.3021 z m 2.9469,0.00178 c 0,0.19213 0.16377,0.35525 0.35525,0.35525 0.19148,0 0.35527,-0.16272 0.35527,-0.35525 0,-0.19253 -0.16213,-0.35527 -0.35527,-0.35527 -0.19314,0 -0.35525,0.16314 -0.35525,0.35527 z"
+           class="fil0 str0"
+           inkscape:connector-curvature="0"
+           style="fill:#2b2a29;stroke:#2b2a29;stroke-width:0.43542412" />
+      </g>
     </g>
     <text
        inkscape:export-ydpi="21.690001"
@@ -549,5 +564,97 @@
        width="283.24954"
        id="rect893-2"
        style="fill:none;stroke:none" />
+    <text
+       inkscape:export-ydpi="21.690001"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-filename="/home/ondro/icon_sdb.png"
+       id="text851-3"
+       y="315.22272"
+       x="1128.2406"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       xml:space="preserve"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:115.3237381px;line-height:1.25;font-family:Ubuntu;-inkscape-font-specification:'Ubuntu Bold'"
+         y="315.22272"
+         x="1128.2406"
+         id="tspan849-6"
+         sodipodi:role="line">CON</tspan></text>
+    <rect
+       inkscape:export-ydpi="21.690001"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-filename="/home/ondro/icon_sdb.png"
+       y="48.855888"
+       x="1105.8055"
+       height="283.24954"
+       width="283.24954"
+       id="rect853-7"
+       style="fill:none;stroke:none;stroke-width:0.92042667;stroke-opacity:1" />
+    <g
+       id="g950"
+       transform="matrix(0.9109286,0,0,0.9109286,-70.614966,-382.36871)"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001">
+      <path
+         id="path931"
+         d="m 1475.1101,520.34449 a 67.412033,67.412033 0 0 1 43.7252,63.11352 v 0 a 67.412033,67.412033 0 0 1 -67.4121,67.41203 67.412033,67.412033 0 0 1 -67.412,-67.41203 67.412033,67.412033 0 0 1 43.7409,-63.11942"
+         style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;vector-effect:none;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:15.7655344;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
+         inkscape:connector-curvature="0" />
+      <path
+         transform="matrix(1,0,0,0.72716861,6.14775,157.88254)"
+         inkscape:original-d="m 1445.2755,481.18216 v 65.94838"
+         inkscape:path-effect="#path-effect935;#path-effect937"
+         inkscape:connector-curvature="0"
+         id="path933"
+         d="m 1445.2755,481.18216 v 65.94838"
+         style="opacity:1;vector-effect:none;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:15.7655344;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;line-height:0%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       x="1128.2406"
+       y="621.22272"
+       id="text954"
+       inkscape:export-filename="/home/ondro/icon_sdb.png"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001"><tspan
+         sodipodi:role="line"
+         id="tspan952"
+         x="1128.2406"
+         y="621.22272"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:115.3237381px;line-height:1.25;font-family:Ubuntu;-inkscape-font-specification:'Ubuntu Bold'">CON</tspan></text>
+    <circle
+       style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;vector-effect:none;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:15.7655344;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
+       id="path964"
+       cx="1251.528"
+       cy="454.82129"
+       r="78.802719"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001" />
+    <rect
+       style="fill:none;stroke:none;stroke-width:0.92042667;stroke-opacity:1"
+       id="rect956"
+       width="283.24954"
+       height="283.24954"
+       x="1105.8055"
+       y="354.8559"
+       inkscape:export-filename="/home/ondro/icon_sdb.png"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001" />
+    <path
+       id="path958"
+       d="m 1273.105,397.62797 a 61.407549,61.407549 0 0 1 39.8305,57.49191 v 0 a 61.407549,61.407549 0 0 1 -61.4076,61.40754 61.407549,61.407549 0 0 1 -61.4075,-61.40754 61.407549,61.407549 0 0 1 39.8449,-57.49729"
+       style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;vector-effect:none;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:14.36127663;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
+       inkscape:connector-curvature="0"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001" />
+    <path
+       transform="matrix(0.9109286,0,0,0.66239868,-65.014805,67.451018)"
+       inkscape:original-d="m 1445.2755,481.18216 v 65.94838"
+       inkscape:path-effect="#path-effect935;#path-effect937"
+       inkscape:connector-curvature="0"
+       id="path960"
+       d="m 1445.2755,481.18216 v 65.94838"
+       style="opacity:1;vector-effect:none;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:15.7655344;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+       inkscape:export-xdpi="21.690001"
+       inkscape:export-ydpi="21.690001" />
   </g>
 </svg>

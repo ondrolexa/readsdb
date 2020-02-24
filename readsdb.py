@@ -22,7 +22,7 @@
  ***************************************************************************/
 """
 # Import the code for the dialog
-from .readsdb_connect import ReadSDBConnectDialog
+from .readsdb_open import ReadSDBOpenDialog
 from .readsdb_import import ReadSDBImportLayer
 from .readsdb_options import ReadSDBOptionsDialog
 from .readsdb_structures import ReadSDBStructuresDialog
@@ -230,7 +230,7 @@ class ReadSDB:
         self.manager = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_manager.ui'))
 
         # Create the dialogs (after translation) and keep reference
-        self.connect_dlg = ReadSDBConnectDialog(self)
+        self.open_dlg = ReadSDBOpenDialog(self)
         self.options_dlg = ReadSDBOptionsDialog(self)
         self.structures_dlg = ReadSDBStructuresDialog(self)
         self.plot_dlg = ReadSDBPlotDialog(self)
@@ -251,10 +251,11 @@ class ReadSDB:
             if not p.is_file():
                 self.settings.setValue("sdbname", "")
                 raise FileNotFoundError
-            self.db = QSqlDatabase.addDatabase('QSQLITE')
-            self.db.setDatabaseName(str(p))
-            self.query = QSqlQuery()
+            if not hasattr(self, 'db'):
+                self.db = QSqlDatabase.addDatabase('QSQLITE')
+                self.db.setDatabaseName(str(p))
             self.db.open()
+            self.query = QSqlQuery()
             # Check tables and relations
             if not self.query.exec("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags LIMIT 1"):
                 self.settings.setValue("sdbname", "")
@@ -517,12 +518,11 @@ class ReadSDB:
             self.unload()
             return
 
-
         icon_path = ':/plugins/readsdb/icons/icon_sdb.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Open SDB database...'),
-            callback=self.sdb_connect,
+            text=self.tr(u'Select SDB database...'),
+            callback=self.sdb_open,
             add_to_toolbar=False,
             parent=self.iface.mainWindow())
 
@@ -533,6 +533,15 @@ class ReadSDB:
             callback=self.import_from_layer,
             add_to_toolbar=False,
             parent=self.iface.mainWindow())
+
+        icon_path = ':/plugins/readsdb/icons/icon_con.png'
+        self.connectedAction = self.add_action(
+            icon_path,
+            text=self.tr(u'Connect/Disconnect SDB database...'),
+            callback=self.sdb_connect,
+            add_to_menu=False,
+            parent=self.iface.mainWindow())
+        self.connectedAction.setCheckable(True)
 
         icon_path = ':/plugins/readsdb/icons/icon_man.png'
         self.add_action(
@@ -584,7 +593,7 @@ class ReadSDB:
         self.editAction.setCheckable(True)
 
         # Check database and set actions
-        self.check_db()
+        #self.check_db()
 
         # Connect site edit dialog
         self.manager.siteFind.setPlaceholderText(self.tr(u'Search pattern'))
@@ -611,6 +620,12 @@ class ReadSDB:
         self.manager.ycoord.setValidator(ycoord_val)
         self.manager.ycoord.setMaxLength(14)
 
+        # Check database and set actions
+        self.dbok = False
+        for ac in self.actions[3:]:
+            ac.setDisabled(True)
+
+
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -625,7 +640,7 @@ class ReadSDB:
         if hasattr(self, 'manager'):
             del self.manager
         # close db
-        if hasattr(self, 'db'):
+        if self.dbok:
             self.db.rollback()
             self.query.exec("UPDATE meta SET value = '{}' WHERE name = 'accessed'".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
             self.db.commit()
@@ -839,19 +854,26 @@ class ReadSDB:
             rtext = str(text).replace('\r\n', ' ').replace('\n', ' ')
         return rtext
 
-    def sdb_connect(self):
-        self.connect_dlg.show()
+    def sdb_open(self):
+        self.open_dlg.show()
         # Populate info
-        self.connect_dlg.sdbinfo(self.settings.value("sdbname", type=str))
+        self.open_dlg.sdbinfo(self.settings.value("sdbname", type=str))
         # Run the dialog event loop
-        if self.connect_dlg.exec():
-            if hasattr(self, 'db'):
-                self.reset()
-                self.db.close()
-                self.editSiteTool = None
-                self.editAction.setChecked(False)
+        self.open_dlg.exec()
+
+    def sdb_connect(self):
+        if self.connectedAction.isChecked():
             self.check_db()
             self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_discon.png'))
+        else:
+            self.db.close()
+            self.editSiteTool = None
+            self.editAction.setChecked(False)
+            self.dbok = False
+            for ac in self.actions[3:]:
+                ac.setDisabled(True)
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
 
     def pysdb_manager(self):
         """Add PySDB manager"""
@@ -904,7 +926,14 @@ class ReadSDB:
         dlg = ReadSDBImportLayer(self)
         if not self.dbok:
             dlg.checkBoxNew.setChecked(True)
+            dlg.checkBoxNew.setEnabled(False)
+            dlg.checkBoxUpdate.setChecked(False)
             dlg.checkBoxUpdate.setEnabled(False)
+        else:
+            dlg.checkBoxNew.setChecked(False)
+            dlg.checkBoxNew.setEnabled(True)
+            dlg.checkBoxUpdate.setChecked(True)
+            dlg.checkBoxUpdate.setEnabled(True)
         result = dlg.exec()
         if result:
             if dlg.checkBoxNew.isChecked():
