@@ -29,6 +29,15 @@ and install APSG in QGIS 3 Python console
     >>> import subprocess
     >>> subprocess.check_output(['pip3', 'install', '--no-deps', '--user', 'apsg'])
 
+On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open Python console
+
+    >>> import pip
+    >>> pip.main(['install', '--no-deps', '--user', 'apsg'])
+
+ReadSDB plugin should be placed into QGIS 3 python plugins folder.
+Go to menu `Settings` -> `User profiles` -> `Open active profile folder` and from there, you can
+go to `python` -> `plugins`. Unzip readsdb folder there.
+
 Restart QGIS and enjoy!
 
 ### Screenshot
