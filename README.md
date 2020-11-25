@@ -9,20 +9,22 @@ The plugin provides the following functionalities:
 3) Contains a basic set of SVG symbols used by structural geologists.
 4) Plot selected data on Stereonet using [APSG](https://github.com/ondrolexa/apsg) python package for structural geologists.
 
-**Install instructions and additional functionalities are under active development.**
+### Install instructions
+
+Download the [ReadSDB plugin](https://github.com/ondrolexa/readsdb/archive/master.zip) from GitHub and unzip into the `python/plugins` folder of the active user profile. The location of profile folder could be find using the menu **Settings ► User Profiles ► Open Active Profile Folder**.
 
 #### Dependency requirements
 
-**Note**:All dependencies must be installed within QGIS 3 python environment:
+**Note**:All dependencies must be installed within QGIS3 python environment:
 
-  - **`Numpy`**
-  - **`Scipy`**
-  - **`Matplotlib`**
-  - **`APSG`** >= 0.6.0 version
+  - `Numpy`
+  - `Scipy`
+  - `Matplotlib`
+  - `apsg >= 0.6.0`
 
 On Debian-like Linux distros use apt
 
-    sudo apt install python3-numpy python3-matplotlib python3-scipy
+    sudo apt install python3-pip python3-numpy python3-matplotlib python3-scipy
 
 and install APSG in QGIS 3 Python console
 
@@ -33,10 +35,6 @@ On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open 
 
     >>> import pip
     >>> pip.main(['install', '--no-deps', '--user', 'apsg'])
-
-ReadSDB plugin should be placed into QGIS 3 python plugins folder.
-Go to menu `Settings` -> `User profiles` -> `Open active profile folder` and from there, you can
-go to `python` -> `plugins`. Unzip readsdb folder there.
 
 Restart QGIS and enjoy!
 
