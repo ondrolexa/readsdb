@@ -88,6 +88,8 @@ class ReadSDB:
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
         if svg_paths is None:
             QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
+        elif isinstance(svg_paths, str):
+            QgsSettings().setValue('svg/searchPathsForSVG', [svg_paths, readsdb_svg_path])
         else:
             if readsdb_svg_path not in svg_paths:
                 svg_paths.append(readsdb_svg_path)
