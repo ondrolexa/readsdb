@@ -48,8 +48,6 @@ from .resources import *
 
 try:
     # Need latest APSG
-    import sys
-    sys.path.insert(0, '/home/ondro/develrepo/apsg')
     from apsg import Fol, Lin, Group
     apsg_check = True
 except:
@@ -184,12 +182,14 @@ class ReadSDB:
         # check SVG dirs
         readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
-        if svg_paths:
+        if svg_paths is None:
+            QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
+        elif isinstance(svg_paths, str):
+            QgsSettings().setValue('svg/searchPathsForSVG', [svg_paths, readsdb_svg_path])
+        else:
             if readsdb_svg_path not in svg_paths:
                 svg_paths.append(readsdb_svg_path)
                 QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
-        else:
-            QgsSettings().setValue('svg/searchPathsForSVG', [readsdb_svg_path])
         # initialize locale
         if QSettings().value('locale/userLocale'):
             locale = QSettings().value('locale/userLocale')[0:2]
@@ -829,7 +829,7 @@ class ReadSDB:
     def calc_gc(self, point=None):
         """Calculate Grid convergence for project CRS"""
         crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
         xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
 
         if point is None:
@@ -854,7 +854,7 @@ class ReadSDB:
         http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
         """
         crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
         xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
 
         if point is None:

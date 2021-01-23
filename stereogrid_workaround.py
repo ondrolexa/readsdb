@@ -83,14 +83,12 @@ class StereoGrid(object):
         # parse options
         grid = kwargs.get("grid", "radial")
         if grid == "radial":
-            ctn_points = int(
-                np.round(np.sqrt(kwargs.get("npoints", 1800)) / 0.280269786)
-            )
+            ctn_points = np.round(np.sqrt(kwargs.get("npoints", 1800)) / 0.280269786)
             # calc grid
             self.xg = 0
             self.yg = 0
-            for rho in np.linspace(0, 1, np.round(ctn_points / 2 / np.pi)):
-                theta = np.linspace(0, 360, np.round(ctn_points * rho + 1))[:-1]
+            for rho in np.linspace(0, 1, int(np.round(ctn_points / 2 / np.pi))):
+                theta = np.linspace(0, 360, int(np.round(ctn_points * rho + 1)))[:-1]
                 self.xg = np.hstack((self.xg, rho * sind(theta)))
                 self.yg = np.hstack((self.yg, rho * cosd(theta)))
         elif grid == "ortho":
