@@ -86,20 +86,29 @@
     </widget>
    </item>
    <item>
-    <widget class="QCheckBox" name="checkBoxUpdate">
-     <property name="text">
-      <string>Update existing sites</string>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>GroupBox</string>
      </property>
-     <property name="checked">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QCheckBox" name="checkBoxNew">
-     <property name="text">
-      <string>Create new database</string>
-     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QRadioButton" name="radioButtonUpdate">
+        <property name="text">
+         <string>Update existing sites</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radioButtonNew">
+        <property name="text">
+         <string>Create new database</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>

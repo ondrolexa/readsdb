@@ -53,7 +53,7 @@ try:
 except:
     apsg_check = False
 
-SDB_VERSION = '3.0.6'
+SDB_VERSION = '3.1.0'
 
 SCHEMA_NEW = """PRAGMA auto_vacuum=0;
 PRAGMA default_cache_size=2000;
@@ -249,7 +249,6 @@ class ReadSDB:
         try:
             p = Path(self.settings.value("sdbname", type=str))
             if not p.is_file():
-                self.settings.setValue("sdbname", "")
                 raise FileNotFoundError
             if not hasattr(self, 'db'):
                 self.db = QSqlDatabase.addDatabase('QSQLITE')
@@ -257,9 +256,8 @@ class ReadSDB:
             self.db.open()
             self.query = QSqlQuery()
             # Check tables and relations
-            if not self.query.exec("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags LIMIT 1"):
-                self.settings.setValue("sdbname", "")
-                raise ConnectionError
+            self.query.exec("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags GROUP BY structdata.id LIMIT 1")
+            self.query.exec("SELECT * FROM attach LIMIT 1")
             self.db.transaction()
             # Site model and view
             self.sitemodel = QSqlRelationalTableModel()
@@ -413,10 +411,13 @@ class ReadSDB:
                 self.editAction.setEnabled(False)
         except FileNotFoundError:
             self.dbok = False
+            self.settings.setValue("sdbname", "")
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
+            self.bar.pushWarning('SDB Read', self.tr(u'File not found'))
         except ConnectionError:
             self.dbok = False
+            self.settings.setValue("sdbname", "")
             for ac in self.actions[2:]:
                 ac.setDisabled(True)
             self.bar.pushWarning('SDB Read', self.tr(u'Not correct SDB database'))
@@ -938,96 +939,110 @@ class ReadSDB:
     def add_update_site(self, idunit, name, x, y, desc, update=False, query=None):
         if query is None:
             query = self.query
-        query.exec("SELECT id FROM sites WHERE name='{}'".format(name))
-        if query.first():
-            if update:
+        if update:
+            query.exec("SELECT id FROM sites WHERE name='{}'".format(name))
+            if query.first():
                 query.exec("UPDATE sites SET id_units={}, x_coord={}, y_coord={}, description='{}' WHERE name='{}'".format(idunit, x, y, desc, name))
         else:
             query.exec("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, name, x, y, desc))
 
     def import_from_layer(self):
-        dlg = ReadSDBImportLayer(self)
-        if not self.dbok:
-            dlg.checkBoxNew.setChecked(True)
-            dlg.checkBoxNew.setEnabled(False)
-            dlg.checkBoxUpdate.setChecked(False)
-            dlg.checkBoxUpdate.setEnabled(False)
-        else:
-            dlg.checkBoxNew.setChecked(False)
-            dlg.checkBoxNew.setEnabled(True)
-            dlg.checkBoxUpdate.setChecked(True)
-            dlg.checkBoxUpdate.setEnabled(True)
-        result = dlg.exec()
-        if result:
-            if dlg.checkBoxNew.isChecked():
-                fname, _ = QFileDialog.getSaveFileName(None, 'New database', '.', 'SDB database (*.sdb)')
-                if fname:
-                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
-                    # self.setCursor(Qt.WaitCursor)
-                    p = Path(fname)
-                    if not p.suffix:
-                        p = p.with_suffix('.sdb')
-                    # close if open
-                    if hasattr(self, 'db'):
-                        self.reset()
-                        self.db.close()
+        layers = QgsProject.instance().mapLayers().values()
+        print(layers)
+        if len(layers) > 0:
+            dlg = ReadSDBImportLayer(self)
+            if not self.dbok:
+                dlg.radioButtonNew.setChecked(True)
+                dlg.radioButtonNew.setEnabled(False)
+                dlg.radioButtonUpdate.setChecked(False)
+                dlg.radioButtonUpdate.setEnabled(False)
+            else:
+                dlg.radioButtonNew.setChecked(False)
+                dlg.radioButtonNew.setEnabled(True)
+                dlg.radioButtonUpdate.setChecked(True)
+                dlg.radioButtonUpdate.setEnabled(True)
+            result = dlg.exec()
+            if result:
+                if dlg.radioButtonNew.isChecked():
+                    fname, _ = QFileDialog.getSaveFileName(None, 'New database', '.', 'SDB database (*.sdb)')
+                    if fname:
+                        QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
+                        # self.setCursor(Qt.WaitCursor)
+                        p = Path(fname)
+                        if not p.suffix:
+                            p = p.with_suffix('.sdb')
+                        # close if open
+                        if hasattr(self, 'db'):
+                            self.reset()
+                            self.db.close()
+                            self.editSiteTool = None
+                            self.editAction.setChecked(False)
+                        db = QSqlDatabase.addDatabase('QSQLITE')
+                        db.setDatabaseName(str(p))
+                        if not db.open():
+                            QMessageBox.critical(None, "Cannot open database",
+                                                 "Unable to establish a database connection.\n"
+                                                 "This example needs SQLite support. Please read the Qt SQL "
+                                                 "driver documentation for information how to build it.\n\n"
+                                                 "Click Cancel to exit.",
+                                                 QMessageBox.Cancel)
+                            return
+                        # process layer
+                        layer = dlg.layerCombo.currentLayer()
+                        site_field = dlg.siteCombo.currentField()
+                        unit_field = dlg.unitCombo.currentField()
+                        desc_field = dlg.descCombo.currentField()
+                        query = QSqlQuery()
+                        for sql in SCHEMA_NEW.splitlines():
+                            query.exec(sql)
+                        # Insert metadata
+                        query.exec("INSERT INTO meta (name,value) VALUES ('version','{}')".format(SDB_VERSION))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('crs','{}')".format(layer.crs().authid()))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('created','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('updated','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('accessed','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        # Insert sites and units
+                        features = layer.getFeatures()
+                        for feature in features:
+                            pt = feature.geometry().asPoint()
+                            idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field], query=query)
+                            desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
+                            self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=False, query=query)
+                        db.commit()
+                        db.close()
+                        self.settings.setValue("sdbname", str(p))
+                        self.check_db()
                         self.editSiteTool = None
                         self.editAction.setChecked(False)
-                    db = QSqlDatabase.addDatabase('QSQLITE')
-                    db.setDatabaseName(str(p))
-                    if not db.open():
-                        QMessageBox.critical(None, "Cannot open database",
-                                             "Unable to establish a database connection.\n"
-                                             "This example needs SQLite support. Please read the Qt SQL "
-                                             "driver documentation for information how to build it.\n\n"
-                                             "Click Cancel to exit.",
-                                             QMessageBox.Cancel)
-                        return
-                    # process layer
+                        self.dbok = False
+                        for ac in self.actions[3:]:
+                            ac.setDisabled(True)
+                        self.connectedAction.setChecked(False)
+                        self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
+                        self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
+                elif dlg.radioButtonUpdate.isChecked():
+                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
                     layer = dlg.layerCombo.currentLayer()
                     site_field = dlg.siteCombo.currentField()
                     unit_field = dlg.unitCombo.currentField()
                     desc_field = dlg.descCombo.currentField()
-                    query = QSqlQuery()
-                    for sql in SCHEMA_NEW.splitlines():
-                        query.exec(sql)
-                    # Insert metadata
-                    query.exec("INSERT INTO meta (name,value) VALUES ('version','{}')".format(SDB_VERSION))
-                    query.exec("INSERT INTO meta (name,value) VALUES ('crs','{}')".format(layer.crs().authid()))
-                    query.exec("INSERT INTO meta (name,value) VALUES ('created','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
-                    query.exec("INSERT INTO meta (name,value) VALUES ('updated','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
-                    query.exec("INSERT INTO meta (name,value) VALUES ('accessed','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
-                    # Insert sites and units
                     features = layer.getFeatures()
                     for feature in features:
                         pt = feature.geometry().asPoint()
-                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field], query=query)
+                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
                         desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
-                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, query=query)
-                    db.commit()
-                    db.close()
-                    self.settings.setValue("sdbname", str(p))
+                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=True)
+                    self.sdb_meta('crs', layer.crs().authid())
+                    self.apply()
                     self.check_db()
-                    # self.unsetCursor()
-                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
-            else:
-                QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
-                layer = dlg.layerCombo.currentLayer()
-                site_field = dlg.siteCombo.currentField()
-                unit_field = dlg.unitCombo.currentField()
-                desc_field = dlg.descCombo.currentField()
-                features = layer.getFeatures()
-                for feature in features:
-                    pt = feature.geometry().asPoint()
-                    idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
-                    desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
-                    self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=dlg.checkBoxUpdate.isChecked())
-                self.apply()
-                self.check_db()
-                self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
-            # recursively walk back the cursor to a pointer
-            while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
-                QgsApplication.instance().restoreOverrideCursor()
+                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+                else:
+                    pass
+                # recursively walk back the cursor to a pointer
+                while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
+                    QgsApplication.instance().restoreOverrideCursor()
+        else:
+            self.bar.pushWarning('SDB Import/Update', self.tr(u'No layer in project.'))
 
     def create_layer(self, name, fields):
         """Create temporary point layer"""
