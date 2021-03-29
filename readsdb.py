@@ -33,7 +33,6 @@ from .geomag import geomag
 import os
 from datetime import date, datetime
 from math import cos, sin, pi
-from pathlib import Path
 import sqlite3
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
