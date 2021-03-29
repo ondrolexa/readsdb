@@ -1,23 +1,24 @@
-# This file should be included when you package your plugin.
+# This file contains metadata for your plugin.
 
-# Mandatory items:
+# This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Read SDB
-qgisMinimumVersion=3.1
-qgisMaximumVersion=3.99
-description=Read PySDB structural data into QGIS
+name=ReadSDB
+qgisMinimumVersion=3.0
+description=Read data from PySDB database data into QGIS
 version=1.0
 author=Ondrej Lexa
-email=lexa.ondrej@gmail.com
+email=lexa@natur.cuni.cz
 
 about=ReadSDB is plugin to select and import data from PySDB structural database.
 
 tracker=https://github.com/ondrolexa/readsdb/issues
 repository=https://github.com/ondrolexa/readsdb
+# End of mandatory metadata
 
 # Recommended items:
 
+hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 # changelog=
 
@@ -27,10 +28,20 @@ tags=python
 homepage=https://github.com/ondrolexa/readsdb
 category=Database
 icon=icons/icon_sdb.png
-
 # experimental flag
 experimental=True
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
 
