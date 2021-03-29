@@ -21,6 +21,20 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os
+from datetime import date, datetime
+from math import cos, sin, pi
+import sqlite3
+from pathlib import Path
+
+from PyQt5 import uic
+from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
+from PyQt5.QtGui import QIcon, QCursor, QDoubleValidator
+from PyQt5.QtWidgets import QAction, QTableView, QDataWidgetMapper, QHeaderView, QAbstractItemView, QDialogButtonBox, QFileDialog
+from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
+from qgis.core import *
+from qgis.gui import QgsMapToolIdentifyFeature, QgsProjectionSelectionDialog
+
 # Import the code for the dialog
 from .readsdb_open import ReadSDBOpenDialog
 from .readsdb_import import ReadSDBImportLayer
@@ -29,18 +43,6 @@ from .readsdb_structures import ReadSDBStructuresDialog
 from .readsdb_plot import ReadSDBPlotDialog
 # read geomag
 from .geomag import geomag
-
-import os
-from datetime import date, datetime
-from math import cos, sin, pi
-import sqlite3
-from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
-from PyQt5.QtGui import QIcon, QCursor, QDoubleValidator
-from PyQt5.QtWidgets import QAction, QTableView, QDataWidgetMapper, QHeaderView, QAbstractItemView, QDialogButtonBox, QFileDialog
-from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
-from qgis.core import *
-from qgis.gui import QgsMapToolIdentifyFeature, QgsProjectionSelectionDialog
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -544,12 +546,13 @@ class ReadSDB:
         self.connectedAction.setCheckable(True)
 
         icon_path = ':/plugins/readsdb/icons/icon_man.png'
-        self.add_action(
+        self.managerAction = self.add_action(
             icon_path,
             text=self.tr(u'Open SDB manager'),
             callback=self.pysdb_manager,
             add_to_menu=False,
             parent=self.iface.mainWindow())
+        self.managerAction.setCheckable(True)
 
         icon_path = ':/plugins/readsdb/icons/icon_opt.png'
         self.add_action(
@@ -891,6 +894,9 @@ class ReadSDB:
         else:
             if self.db.isOpen():
                 self.db.close()
+            if self.managerAction.isChecked():
+                self.managerAction.setChecked(False)
+                self.iface.removeDockWidget(self.manager)
             self.editSiteTool = None
             self.editAction.setChecked(False)
             self.dbok = False
@@ -900,7 +906,10 @@ class ReadSDB:
 
     def pysdb_manager(self):
         """Add PySDB manager"""
-        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.manager)
+        if self.managerAction.isChecked():
+            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.manager)
+        else:
+            self.iface.removeDockWidget(self.manager)
 
     def set_options(self):
         """Select database and set plugin options"""

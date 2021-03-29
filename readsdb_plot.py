@@ -28,7 +28,9 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from qgis.core import *
 
+# Make sure that we are using QT5
 import matplotlib
+matplotlib.use('Qt5Agg')
 
 # Need latest APSG
 from apsg import StereoNet, Group, Fol, Lin
@@ -37,14 +39,8 @@ import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-from apsg import *
-
 # qhull workaroud
 import platform
-
-# Make sure that we are using QT5
-matplotlib.use('Qt5Agg')
-
 qgis_qhull_fails = platform.platform().startswith('Linux')
 if qgis_qhull_fails:
     from .stereogrid_workaround import StereoGrid as StereoGridQGIS
