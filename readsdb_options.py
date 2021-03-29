@@ -26,7 +26,6 @@ import os
 from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
-from qgis.core import *
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_options.ui'))
@@ -50,11 +49,11 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def accept(self):
         try:
-            self.settings.setValue("gui/angle_gc", float(self.angle_gc.text()))
-            self.settings.setValue("gui/angle_md", float(self.angle_md.text()))
-            self.settings.setValue("gui/offset", float(self.offset.text()))
-            self.settings.setValue("gui/auto_gc", bool(self.corr_gc_auto.isChecked()))
-            self.settings.setValue("gui/auto_md", bool(self.corr_md_auto.isChecked()))
+            self.settings.setValue("angle_gc", float(self.angle_gc.text()))
+            self.settings.setValue("angle_md", float(self.angle_md.text()))
+            self.settings.setValue("offset", float(self.offset.text()))
+            self.settings.setValue("auto_gc", bool(self.corr_gc_auto.isChecked()))
+            self.settings.setValue("auto_md", bool(self.corr_md_auto.isChecked()))
             super(ReadSDBOptionsDialog, self).accept()
         except:
             QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Check option values.'))
@@ -69,6 +68,6 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
         self.angle_md.setText('{:g}'.format(dec))
 
     def store_date(self):
-        self.readsdb.sdb.meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
+        self.readsdb.sdb_meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
+        self.readsdb.metamodel.setQuery('SELECT * from meta')
         self.readsdb.iface.messageBar().pushSuccess('SDB Read', 'Date stored in SDB.')
-

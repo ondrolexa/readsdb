@@ -1,9 +1,14 @@
 <RCC>
     <qresource prefix="/plugins/readsdb" >
         <file>../icons/icon_sdb.png</file>
+        <file>../icons/icon_man.png</file>
+        <file>../icons/icon_con.png</file>
+        <file>../icons/icon_discon.png</file>
         <file>../icons/icon_opt.png</file>
         <file>../icons/icon_loc.png</file>
         <file>../icons/icon_str.png</file>
         <file>../icons/icon_net.png</file>
+        <file>../icons/icon_edt.png</file>
+        <file>../icons/icon_lyr.png</file>
     </qresource>
 </RCC>

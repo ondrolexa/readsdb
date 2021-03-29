@@ -38,6 +38,22 @@ On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open 
 
 Restart QGIS and enjoy!
 
+On Debian-like Linux distros use apt
+
+    $ sudo apt install python3-numpy3-pip python3-numpy python3-matplotlib python3-scipy
+
+and install APSG in QGIS 3 Python console
+
+    >>> import subprocess
+    >>> subprocess.check_output(['pip3', 'install', '--no-deps', '--user', 'apsg'])
+
+On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open Python console
+
+    >>> import pip
+    >>> pip.main(['install', '--no-deps', '--user', 'apsg'])
+
+Restart QGIS and enjoy!
+
 ### Screenshot
 
 ![](help/source/images/readsdb_ani.gif)
