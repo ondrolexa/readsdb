@@ -679,6 +679,7 @@ class ReadSDB:
         self.metamodel.setQuery('SELECT * from meta')
 
     def reset(self):
+        idx = self.siteSelection.currentIndex()
         self.db.rollback()
         self.db.transaction()
         self.sitemodel.select()
@@ -688,6 +689,7 @@ class ReadSDB:
         self.tagsmodel.select()
         self.datamodel.relationModel(2).select()
         self.metamodel.setQuery('SELECT * from meta')
+        self.manager.siteView.setCurrentIndex(idx)
 
     def struct_changed(self, left, right):
         # self.structmodel.submit()
