@@ -171,7 +171,7 @@ class ReadSDB:
     def calc_gc(self, point=None):
         """Calculate Grid convergence for project CRS"""
         crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
         xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
 
         if point is None:
@@ -196,7 +196,7 @@ class ReadSDB:
         http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
         """
         crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem(4326)
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
         xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
 
         if point is None:
