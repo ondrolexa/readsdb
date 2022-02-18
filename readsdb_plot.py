@@ -33,7 +33,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 
 # Need latest APSG
-from apsg import StereoNet, Group, Fol, Lin
+from apsg import StereoNet, folset, linset, fol, lin
 
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -42,6 +42,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 # qhull workaroud
 import platform
 qgis_qhull_fails = platform.platform().startswith('Linux')
+qgis_qhull_fails = False
 if qgis_qhull_fails:
     from .stereogrid_workaround import StereoGrid as StereoGridQGIS
 else:
@@ -86,8 +87,9 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
         return self.tabWidget.widget(index).findChild(type, name)
 
     def plotnet(self):
-        self.net.grid = self.checkGrid.isChecked()
-        self.net.cla()
+        #self.net.grid = self.checkGrid.isChecked()
+        self.net._kwargs["overlay"] = self.checkGrid.isChecked()
+        self.net.clear()
         for idx, layer in self.data_layers[::-1]:  # plot in right order
             if layer.selectedFeatureCount():
                 features = layer.getSelectedFeatures()
@@ -95,10 +97,10 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
                 features = layer.getFeatures()
             # Create data Group
             if layer._is_planar:
-                g = Group([Fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+                g = folset([fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
             else:
-                g = Group([Lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
-            label = repr(g) if self.checkLabels.isChecked() else None
+                g = linset([lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+            label = repr(g) if self.checkLabels.isChecked() else ''
             # contours
             if self.opt(idx, QtWidgets.QCheckBox, 'checkContours').isChecked():
                 nlevels = self.opt(idx, QtWidgets.QSpinBox, 'spinLevels').value()
@@ -129,20 +131,24 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
                         cb = self.net.fig.colorbar(cs, cax=cbaxes)
                         if label:
                             cb.ax.set_title(label)
-            # principal
-            eigf = self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked()
-            eigl = self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked()
-            self.net.tensor(g.ortensor, eigenfols=eigf, eigenlins=eigl)
             # plot data
             markersize = self.opt(idx, QtWidgets.QSpinBox, 'spinSize').value()
             marker = self.opt(idx, QtWidgets.QComboBox, 'comboStyle').currentText()
             if layer._is_planar:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
                     if self.opt(idx, QtWidgets.QCheckBox, 'checkAsPoles').isChecked():
-                        self.net.pole(g, marker=marker, markersize=markersize, label=label)
+                        self.net.pole(g, marker=marker, ms=markersize, label=label)
                     else:
-                        self.net.plane(g, label=label)
+                        self.net.great_circle(g, label=label)
             else:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
-                    self.net.line(g, marker=marker, markersize=markersize, label=label)
+                    self.net.line(g, marker=marker, ms=markersize, label=label)
+            ## principal
+            if self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked():
+                self.net.great_circle(*g.ortensor().eigenfols, label='E-fols' if self.checkLabels.isChecked() else '')
+            if self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked():
+                self.net.line(*g.ortensor().eigenlins, label='E-lins' if self.checkLabels.isChecked() else '')
+            #self.net.tensor(g.ortensor, eigenfols=eigf, eigenlins=eigl)
+
+        self.net.render()
         self.canvas.draw()

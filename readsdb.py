@@ -49,7 +49,7 @@ from .resources import *
 
 try:
     # Need latest APSG
-    from apsg import Fol, Lin, Group
+    from apsg import fol, lin, folset, linset
     apsg_check = True
 except:
     apsg_check = False
@@ -1193,10 +1193,10 @@ class ReadSDB:
                             azi.append(self.query.value('azimuth'))
                             inc.append(self.query.value('inclination'))
                         if layer._is_planar:
-                            g = Group.from_array(azi, inc, typ=Fol)
+                            g = folset.from_array(azi, inc)
                             dd = g.ortensor.eigenfols[0].dd
                         else:
-                            g = Group.from_array(azi, inc, typ=Lin)
+                            g = linset.from_array(azi, inc)
                             dd = g.ortensor.eigenlins[0].dd
                         rec['azimuth'] = float(dd[0])
                         rec['inclination'] = float(dd[1])
