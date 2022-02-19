@@ -20,7 +20,7 @@ Download the [ReadSDB plugin](https://github.com/ondrolexa/readsdb/archive/maste
   - `Numpy`
   - `Scipy`
   - `Matplotlib`
-  - `apsg >= 0.7.0`
+  - `apsg >= 1.0`
 
 On Debian-like Linux distros use apt
 
