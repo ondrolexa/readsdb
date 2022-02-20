@@ -209,7 +209,9 @@ class ReadSDB:
         # Get the params from last session.
         self.settings = QSettings('LX', 'readsdb')
         if self.settings.value("offset") is None:
-            self.settings.setValue("offset", 1.5)
+            self.settings.setValue("offset", 3.5)
+        if self.settings.value("linmulti") is None:
+            self.settings.setValue("linmulti", 1.7)
         if self.settings.value("angle_gc") is None:
             self.settings.setValue("angle_gc", 0)
         if self.settings.value("angle_md") is None:
@@ -921,6 +923,7 @@ class ReadSDB:
         self.options_dlg.angle_gc.setText(self.settings.value("angle_gc", type=str))
         self.options_dlg.angle_md.setText(self.settings.value("angle_md", type=str))
         self.options_dlg.offset.setText(self.settings.value("offset", type=str))
+        self.options_dlg.linmulti.setText(self.settings.value("linmulti", type=str))
         self.options_dlg.corr_gc_auto.setChecked(self.settings.value("auto_gc", type=bool))
         self.options_dlg.corr_md_auto.setChecked(self.settings.value("auto_md", type=bool))
         # set magnetic declination calendar
@@ -1175,8 +1178,8 @@ class ReadSDB:
                 while self.query.next():
                     sites.append(self.query.value('name'))
                 sites = sorted(list(set(sites)))  # IS IT OK?
-            # get scale for label offset (linear needs more)
-            off_coef = 1.0 if layer._is_planar else 4.5
+            # get scale for label offset (use linear multiplier for linear features)
+            off_coef = 1.0 if layer._is_planar else self.settings.value("linmulti", type=float)
 
             # create features from data rows
             for site in sites:
@@ -1194,10 +1197,10 @@ class ReadSDB:
                             inc.append(self.query.value('inclination'))
                         if layer._is_planar:
                             g = folset.from_array(azi, inc)
-                            dd = g.ortensor.eigenfols[0].dd
+                            dd = g.ortensor().eigenfols[0].geo
                         else:
                             g = linset.from_array(azi, inc)
-                            dd = g.ortensor.eigenlins[0].dd
+                            dd = g.ortensor().eigenlins[0].geo
                         rec['azimuth'] = float(dd[0])
                         rec['inclination'] = float(dd[1])
                         rec['description'] = 'Averaged from {} data'.format(len(g))
