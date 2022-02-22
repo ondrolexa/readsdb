@@ -50,12 +50,14 @@ class MyMplCanvas(FigureCanvas):
 
     def __init__(self, parent=None):
         self.net = StereoNet()
-        FigureCanvas.__init__(self, self.net.fig)
+        self.net.init_figure()
+        super(MyMplCanvas, self).__init__(self.net.fig)
+        #FigureCanvas.__init__(self, self.net.fig)
         self.setParent(parent)
-        FigureCanvas.setSizePolicy(self,
+        super(MyMplCanvas, self).setSizePolicy(
                                    QtWidgets.QSizePolicy.Expanding,
                                    QtWidgets.QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
+        super(MyMplCanvas, self).updateGeometry()
 
 
 class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
