@@ -21,31 +21,76 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os
+from datetime import date, datetime
+from math import cos, sin, pi
+import sqlite3
+from pathlib import Path
+
+from PyQt5 import uic
+from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
+from PyQt5.QtGui import QIcon, QCursor, QDoubleValidator
+from PyQt5.QtWidgets import QAction, QTableView, QDataWidgetMapper, QHeaderView, QAbstractItemView, QDialogButtonBox, QFileDialog
+from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlRelation, QSqlRelationalDelegate, QSqlRelationalTableModel, QSqlTableModel
+from qgis.core import *
+from qgis.gui import QgsMapToolIdentifyFeature, QgsProjectionSelectionDialog
+
 # Import the code for the dialog
-from .readsdb_connect import ReadSDBConnectDialog
+from .readsdb_open import ReadSDBOpenDialog
+from .readsdb_import import ReadSDBImportLayer
 from .readsdb_options import ReadSDBOptionsDialog
 from .readsdb_structures import ReadSDBStructuresDialog
 from .readsdb_plot import ReadSDBPlotDialog
 # read geomag
 from .geomag import geomag
 
-import os
-from datetime import date, datetime
-from math import cos, sin, pi
-import sqlite3
-from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant, Qt, QDate
-from PyQt5.QtGui import QIcon, QCursor
-from PyQt5.QtWidgets import QAction, QWidget,  QFormLayout
-from qgis.core import *
-
 # Initialize Qt resources from file resources.py
 from .resources import *
 
-# Need latest APSG
-#import sys
-#sys.path.insert(0, '/home/ondro/develrepo/apsg')
-from apsg import SDB
+try:
+    # Need latest APSG
+    from apsg import fol, lin, folset, linset
+    apsg_check = True
+except:
+    apsg_check = False
+
+SDB_VERSION = '3.1.0'
+
+SCHEMA_NEW = """PRAGMA auto_vacuum=0;
+PRAGMA default_cache_size=2000;
+PRAGMA encoding='UTF-8';
+PRAGMA page_size=1024;
+DROP TABLE IF EXISTS `units`;
+CREATE TABLE IF NOT EXISTS `units` (`id` INTEGER NOT NULL, `pos` INTEGER NOT NULL DEFAULT 0, `name` VARCHAR ( 60 ) NOT NULL, `description` TEXT, PRIMARY KEY(`id`));
+DROP TABLE IF EXISTS `tags`;
+CREATE TABLE IF NOT EXISTS `tags` (`id` INTEGER NOT NULL, `pos` INTEGER NOT NULL DEFAULT 0, `name` VARCHAR ( 16 ) NOT NULL, `description` TEXT, PRIMARY KEY(`id`));
+DROP TABLE IF EXISTS `tagged`;
+CREATE TABLE IF NOT EXISTS `tagged` (`id` INTEGER, `id_tags` INTEGER NOT NULL, `id_structdata` INTEGER NOT NULL, FOREIGN KEY(`id_tags`) REFERENCES `tags`(`id`), PRIMARY KEY(`id_tags`,`id_structdata`), FOREIGN KEY(`id_structdata`) REFERENCES `structdata`(`id`));
+DROP TABLE IF EXISTS `structype`;
+CREATE TABLE IF NOT EXISTS `structype` (`id` INTEGER NOT NULL, `pos` INTEGER NOT NULL DEFAULT 0, `structure` VARCHAR ( 16 ) NOT NULL, `description` TEXT, `structcode` INTEGER DEFAULT NULL, `groupcode` INTEGER DEFAULT NULL, `planar` INTEGER DEFAULT 1, PRIMARY KEY(`id`));
+DROP TABLE IF EXISTS `structdata`;
+CREATE TABLE IF NOT EXISTS `structdata` (`id` INTEGER NOT NULL, `id_sites` INTEGER NOT NULL, `id_structype` INTEGER NOT NULL, `azimuth` FLOAT NOT NULL DEFAULT 0, `inclination` FLOAT NOT NULL DEFAULT 0, `description` TEXT, FOREIGN KEY(`id_sites`) REFERENCES `sites`(`id`), PRIMARY KEY(`id`), FOREIGN KEY(`id_structype`) REFERENCES `structype`(`id`));
+DROP TABLE IF EXISTS `sites`;
+CREATE TABLE IF NOT EXISTS `sites` (`id` INTEGER NOT NULL, `id_units` INTEGER NOT NULL, `name` VARCHAR ( 16 ) NOT NULL DEFAULT '', `x_coord` FLOAT DEFAULT NULL, `y_coord` FLOAT DEFAULT NULL, `description` TEXT, FOREIGN KEY(`id_units`) REFERENCES `units`(`id`), PRIMARY KEY(`id`));
+DROP TABLE IF EXISTS `meta`;
+CREATE TABLE IF NOT EXISTS `meta` (`id` INTEGER NOT NULL, `name` VARCHAR ( 16 ) NOT NULL, `value` TEXT, PRIMARY KEY(`id`));
+DROP TABLE IF EXISTS `attach`;
+CREATE TABLE IF NOT EXISTS `attach` (`id` INTEGER NOT NULL, `id_structdata_planar` INTEGER NOT NULL, `id_structdata_linear` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`id_structdata_planar`) REFERENCES `structdata`(`id`), FOREIGN KEY(`id_structdata_linear`) REFERENCES `structdata`(`id`));
+DROP INDEX IF EXISTS `ix_structdata_id_structype`;
+CREATE INDEX IF NOT EXISTS `ix_structdata_id_structype` ON `structdata` (`id_structype`);
+DROP INDEX IF EXISTS `ix_structdata_id_sites`;
+CREATE INDEX IF NOT EXISTS `ix_structdata_id_sites` ON `structdata` (`id_sites`);
+DROP INDEX IF EXISTS `ix_sites_id_units`;
+CREATE INDEX IF NOT EXISTS `ix_sites_id_units` ON `sites` (`id_units`);
+DROP INDEX IF EXISTS `ix_attach_id_structdata_planar`;
+CREATE INDEX IF NOT EXISTS `ix_attach_id_structdata_planar` ON `attach` (`id_structdata_planar`);
+DROP INDEX IF EXISTS `ix_attach_id_structdata_linear`;
+CREATE INDEX IF NOT EXISTS `ix_attach_id_structdata_linear` ON `attach` (`id_structdata_linear`);
+INSERT INTO structype VALUES (1, 1,'S', 'Default planar feature', 35, 13, 1);
+INSERT INTO structype VALUES (2, 2, 'L', 'Default linear feature', 78, 13, 0);
+INSERT INTO units VALUES (1, 1, 'Default', 'Default unit');"""
+
+SDB_SELECT = "SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags"
 
 GM = geomag.GeoMag()
 
@@ -62,10 +107,62 @@ structure_fields = {'name': QVariant.String,
                     'lbloff': QVariant.String
                     }
 
-site_fields = {'name': QVariant.String,
+site_fields = {'id': QVariant.Int,
+               'name': QVariant.String,
                'unit': QVariant.String,
                'description': QVariant.String
                }
+
+
+def sdb_make_select(structs=None, sites=None, units=None, tags=None):
+    w = []
+    if structs:
+        if isinstance(structs, str):
+            w.append("structype.structure='%s'" % structs)
+        elif isinstance(structs, (list, tuple)):
+            u = " OR ".join(
+                ["structype.structure='{}'".format(struct) for struct in structs]
+            )
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword structs must be list or string.")
+    if sites:
+        if isinstance(sites, str):
+            w.append("sites.name='{}'".format(sites))
+        elif isinstance(sites, (list, tuple)):
+            u = " OR ".join(["sites.name='{}'".format(site) for site in sites])
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword sites must be list or string.")
+    if units:
+        if isinstance(units, str):
+            w.append("unit='{}'".format(units))
+        elif isinstance(units, (list, tuple)):
+            u = " OR ".join(["unit='{}'".format(unit) for unit in units])
+            w.append("(" + u + ")")
+        else:
+            raise ValueError("Keyword units must be list or string.")
+    if tags:
+        if isinstance(tags, str):
+            tagw = ["tags LIKE '%{}%'".format(tags)]
+        elif isinstance(tags, (list, tuple)):
+            u = " AND ".join(["tags LIKE '%{}%'".format(tag) for tag in tags])
+            tagw = ["({})".format(u)]
+        else:
+            raise ValueError("Keyword tags must be list or string.")
+        insel = SDB_SELECT
+        if w:
+            insel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
+        else:
+            insel += " GROUP BY structdata.id"
+        sel = "SELECT * FROM ({}) WHERE {}".format(insel, " AND ".join(tagw))
+    else:
+        sel = SDB_SELECT
+        if w:
+            sel += " WHERE {} GROUP BY structdata.id".format(" AND ".join(w))
+        else:
+            sel += " GROUP BY structdata.id"
+    return sel
 
 
 class ReadSDB:
@@ -95,33 +192,36 @@ class ReadSDB:
                 svg_paths.append(readsdb_svg_path)
                 QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'ReadSDB_{}.qm'.format(locale))
+        if QSettings().value('locale/userLocale'):
+            locale = QSettings().value('locale/userLocale')[0:2]
+            locale_path = os.path.join(
+                self.plugin_dir,
+                'i18n',
+                'ReadSDB_{}.qm'.format(locale))
 
-        if os.path.exists(locale_path):
-            self.translator = QTranslator()
-            self.translator.load(locale_path)
+            if os.path.exists(locale_path):
+                self.translator = QTranslator()
+                self.translator.load(locale_path)
 
-            if qVersion() > '4.3.3':
-                QCoreApplication.installTranslator(self.translator)
+                if qVersion() > '4.3.3':
+                    QCoreApplication.installTranslator(self.translator)
 
         # Get the params from last session.
-        self.settings = QSettings("readsdb")
-        if self.settings.value("gui/offset") is None:
-            self.settings.setValue("gui/offset", 1.5)
-        if self.settings.value("gui/angle_gc") is None:
-            self.settings.setValue("gui/angle_gc", 0)
-        if self.settings.value("gui/angle_md") is None:
-            self.settings.setValue("gui/angle_md", 0)
-        if self.settings.value("gui/sdbname") is None:
-            self.settings.setValue("gui/sdbname", "")
-        if self.settings.value("gui/auto_gc") is None:
-            self.settings.setValue("gui/auto_gc", True)
-        if self.settings.value("gui/auto_md") is None:
-            self.settings.setValue("gui/auto_md", True)
+        self.settings = QSettings('LX', 'readsdb')
+        if self.settings.value("offset") is None:
+            self.settings.setValue("offset", 3.5)
+        if self.settings.value("linmulti") is None:
+            self.settings.setValue("linmulti", 1.7)
+        if self.settings.value("angle_gc") is None:
+            self.settings.setValue("angle_gc", 0)
+        if self.settings.value("angle_md") is None:
+            self.settings.setValue("angle_md", 0)
+        if self.settings.value("sdbname") is None:
+            self.settings.setValue("sdbname", "")
+        if self.settings.value("auto_gc") is None:
+            self.settings.setValue("auto_gc", True)
+        if self.settings.value("auto_md") is None:
+            self.settings.setValue("auto_md", True)
 
         # Declare instance attributes
         self.actions = []
@@ -129,26 +229,206 @@ class ReadSDB:
         # create toolbar
         self.toolbar = self.iface.addToolBar(u'ReadSDB')
         self.toolbar.setObjectName(u'ReadSDB')
+        # create manager dialog
+        self.manager = uic.loadUi(os.path.join(os.path.dirname(__file__), 'ui/dock_manager.ui'))
 
         # Create the dialogs (after translation) and keep reference
-        self.connect_dlg = ReadSDBConnectDialog(self)
+        self.open_dlg = ReadSDBOpenDialog(self)
         self.options_dlg = ReadSDBOptionsDialog(self)
         self.structures_dlg = ReadSDBStructuresDialog(self)
         self.plot_dlg = ReadSDBPlotDialog(self)
 
+        # logging
+        self.log = QgsApplication.messageLog()
+        self.bar = self.iface.messageBar()
+
+        QgsProject.instance().layerStore().layerRemoved.connect(self.check_site_layer)
+
         # Store sites layer
+        self.dbok = False
         self.sites_layer = None
 
     def check_db(self):
         try:
-            self.sdb = SDB(self.settings.value("gui/sdbname", type=str))
+            p = Path(self.settings.value("sdbname", type=str))
+            if not p.is_file():
+                raise FileNotFoundError
+            if not hasattr(self, 'db'):
+                self.db = QSqlDatabase.addDatabase('QSQLITE')
+            self.db.setDatabaseName(str(p))
+            self.db.open()
+            self.query = QSqlQuery()
+            # Check tables and relations
+            self.query.exec("SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags GROUP BY structdata.id LIMIT 1")
+            self.query.exec("SELECT * FROM attach LIMIT 1")
+            self.db.transaction()
+            # Site model and view
+            self.sitemodel = QSqlRelationalTableModel()
+            self.sitemodel.setTable('sites')
+            # self.sitemodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.sitemodel.setRelation(1, QSqlRelation('units', 'id', 'name'))
+            self.sitemodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.sitemodel.setHeaderData(1, Qt.Horizontal, "Unit")
+            self.sitemodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.sitemodel.setHeaderData(3, Qt.Horizontal, "X")
+            self.sitemodel.setHeaderData(4, Qt.Horizontal, "Y")
+            self.sitemodel.setHeaderData(5, Qt.Horizontal, "Description")
+            self.sitemodel.select()
+            self.manager.siteView.setModel(self.sitemodel)
+            self.manager.siteView.setItemDelegate(QSqlRelationalDelegate(self.manager.siteView))
+            self.manager.siteView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.siteView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.siteView.hideColumn(0)
+            self.manager.siteView.hideColumn(1)
+            self.manager.siteView.hideColumn(3)
+            self.manager.siteView.hideColumn(4)
+            self.manager.siteView.hideColumn(5)
+            self.manager.siteView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.manager.siteView.verticalHeader().setVisible(False)
+            # Data model and view
+            self.datamodel = QSqlRelationalTableModel()
+            self.datamodel.setTable('structdata')
+            # self.datamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.datamodel.setRelation(2, QSqlRelation('structype', 'id', 'structure'))
+            self.datamodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.datamodel.setHeaderData(1, Qt.Horizontal, "ID_Site")
+            self.datamodel.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.datamodel.setHeaderData(3, Qt.Horizontal, "Azi")
+            self.datamodel.setHeaderData(4, Qt.Horizontal, "Inc")
+            self.datamodel.setHeaderData(5, Qt.Horizontal, "Description")
+            self.datamodel.setFilter("structdata.id_sites=0")
+            self.datamodel.select()
+            self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
+            self.manager.dataView.setModel(self.datamodel)
+            self.manager.dataView.setItemDelegate(QSqlRelationalDelegate(self.manager.dataView))
+            self.manager.dataView.hideColumn(0)
+            self.manager.dataView.hideColumn(1)
+            self.manager.dataView.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+            self.manager.dataView.verticalHeader().setVisible(False)
+            # Unit model and view
+            self.unitmodel = QSqlTableModel()
+            self.unitmodel.setTable('units')
+            # self.unitmodel.setEditStrategy(QSqlTableModel.OnFieldChange)
+            self.unitmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.unitmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.unitmodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.unitmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.unitmodel.select()
+            self.manager.unitView.setModel(self.unitmodel)
+            self.manager.unitView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.unitView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.unitView.hideColumn(0)
+            self.manager.unitView.hideColumn(1)
+            self.manager.unitView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.unitView.verticalHeader().setVisible(False)
+            self.manager.comboUnit.setModel(self.unitmodel)
+            self.manager.comboUnit.setModelColumn(self.unitmodel.fieldIndex('name'))
+            # Structures model and view
+            self.structmodel = QSqlTableModel()
+            self.structmodel.setTable('structype')
+            # self.structmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.structmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.structmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.structmodel.setHeaderData(2, Qt.Horizontal, "Structure")
+            self.structmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.structmodel.setHeaderData(4, Qt.Horizontal, "Structcode")
+            self.structmodel.setHeaderData(5, Qt.Horizontal, "Groupcode")
+            self.structmodel.setHeaderData(6, Qt.Horizontal, "Planar")
+            self.structmodel.setSort(1, Qt.AscendingOrder)
+            self.structmodel.select()
+            self.manager.structuresView.setModel(self.structmodel)
+            self.manager.structuresView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.structuresView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.structuresView.hideColumn(0)
+            self.manager.structuresView.hideColumn(1)
+            # self.manager.structuresView.horizontalHeader().moveSection(3, 6)
+            # self.manager.structuresView.horizontalHeader().moveSection(5, 3)
+            self.manager.structuresView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.structuresView.verticalHeader().setVisible(False)
+            # Tags model and view
+            self.tagsmodel = QSqlTableModel()
+            self.tagsmodel.setTable('tags')
+            # self.tagsmodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.tagsmodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.tagsmodel.setHeaderData(1, Qt.Horizontal, "Position")
+            self.tagsmodel.setHeaderData(2, Qt.Horizontal, "Name")
+            self.tagsmodel.setHeaderData(3, Qt.Horizontal, "Description")
+            self.tagsmodel.select()
+            self.manager.tagsView.setModel(self.tagsmodel)
+            self.manager.tagsView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.tagsView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.tagsView.hideColumn(0)
+            self.manager.tagsView.hideColumn(1)
+            self.manager.tagsView.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            self.manager.tagsView.verticalHeader().setVisible(False)
+            # Meta model and view
+            self.metamodel = QSqlQueryModel()
+            self.metamodel.setQuery('SELECT * from meta')
+            # self.metamodel.setEditStrategy(QSqlTableModel.OnManualSubmit)
+            self.metamodel.setHeaderData(0, Qt.Horizontal, "ID")
+            self.metamodel.setHeaderData(1, Qt.Horizontal, "Name")
+            self.metamodel.setHeaderData(2, Qt.Horizontal, "Value")
+            # self.metamodel.select()
+            self.manager.metaView.setModel(self.metamodel)
+            self.manager.metaView.setSelectionBehavior(QTableView.SelectRows)
+            self.manager.metaView.setSelectionMode(QTableView.SingleSelection)
+            self.manager.metaView.hideColumn(0)
+            self.manager.metaView.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.manager.metaView.verticalHeader().setVisible(False)
+            # Mapper
+            self.mapper = QDataWidgetMapper()
+            self.mapper.setModel(self.sitemodel)
+            self.mapperdelegate = QSqlRelationalDelegate()
+            self.mapper.setItemDelegate(self.mapperdelegate)
+            self.mapper.addMapping(self.manager.xcoord, self.sitemodel.fieldIndex("x_coord"))
+            self.mapper.addMapping(self.manager.ycoord, self.sitemodel.fieldIndex("y_coord"))
+            self.mapper.addMapping(self.manager.siteDesc, self.sitemodel.fieldIndex("description"))
+            self.mapper.addMapping(self.manager.comboUnit, 1)
+            self.mapper.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
+
+            # connections
+            self.siteSelection = self.manager.siteView.selectionModel()
+            self.siteSelection.currentRowChanged.connect(self.updateData)
+            self.structmodel.dataChanged.connect(self.struct_changed)
+
+            # update meta coordinate system
+            if self.sdb_meta('crs') is None:
+                proj4 = self.sdb_meta('proj4')
+                if proj4 is None:
+                    raise ValueError
+                crs = QgsCoordinateReferenceSystem()
+                crs.createFromProj4(self.query.value(0))
+                self.sdb_meta('crs', crs.authid())
+                self.metamodel.setQuery('SELECT * from meta')
+
+            # qcombobox workaround
+            self.manager.comboUnit.currentIndexChanged.connect(lambda: self.mapperdelegate.commitData.emit(self.manager.comboUnit))
+
+            self.manager.setWindowTitle(p.name)
+            self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
+
             self.dbok = True
-            for ac in self.actions[1:]:
+            for ac in self.actions:
                 ac.setEnabled(True)
-        except (AssertionError, sqlite3.OperationalError):
+            if self.sites_layer is None:
+                self.editAction.setEnabled(False)
+        except FileNotFoundError:
             self.dbok = False
-            for ac in self.actions[1:]:
+            self.settings.setValue("sdbname", "")
+            for ac in self.actions[2:]:
                 ac.setDisabled(True)
+            self.bar.pushWarning('SDB Read', self.tr(u'File not found'))
+        except ConnectionError:
+            self.dbok = False
+            self.settings.setValue("sdbname", "")
+            for ac in self.actions[2:]:
+                ac.setDisabled(True)
+            self.bar.pushWarning('SDB Read', self.tr(u'Not correct SDB database'))
+        except ValueError:
+            self.dbok = False
+            for ac in self.actions[2:]:
+                ac.setDisabled(True)
+            self.bar.pushWarning('SDB Read', self.tr(u'Not CRS or Proj4 in meta table'))
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -167,44 +447,6 @@ class ReadSDB:
 
     def res_path(self, path):
         return os.path.join(self.plugin_dir, path)
-
-    def calc_gc(self, point=None):
-        """Calculate Grid convergence for project CRS"""
-        crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
-        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
-
-        if point is None:
-            point = self.iface.mapCanvas().extent().center()
-        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
-
-        if point_ll.y() < 89.9:
-            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() + 0.01)
-            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
-            gc = point.azimuth(point_north)
-        else:
-            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() - 0.01)
-            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
-            gc = point_north.azimuth(point)
-        return gc
-
-    def calc_md(self, point=None, time=date.today()):
-        """Calculate magnetic declination uising Christopher Weiss geomag library.
-
-        Adapted from the geomagc software and World Magnetic Model of the NOAA
-        Satellite and Information Service, National Geophysical Data Center
-        http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
-        """
-        crsSrc = QgsProject.instance().crs()
-        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
-        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
-
-        if point is None:
-            point = self.iface.mapCanvas().extent().center()
-        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
-
-        mag = GM.GeoMag(point_ll.y(), point_ll.x(), time=time)
-        return mag.dec
 
     def add_action(self, icon_path, text, callback,
                    enabled_flag=True, add_to_menu=True, add_to_toolbar=True,
@@ -274,18 +516,52 @@ class ReadSDB:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
+        # check apsg
+        if not apsg_check:
+            self.bar.pushWarning('SDB Read', self.tr(u'APSG python package need to be installed.'))
+            self.unload()
+            return
+
         icon_path = ':/plugins/readsdb/icons/icon_sdb.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Select SDB database'),
-            callback=self.set_connection,
+            text=self.tr(u'Select SDB database...'),
+            callback=self.sdb_open,
+            add_to_toolbar=False,
             parent=self.iface.mainWindow())
+
+        icon_path = ':/plugins/readsdb/icons/icon_lyr.png'
+        self.add_action(
+            icon_path,
+            text=self.tr(u'Create/Update SDB from layer...'),
+            callback=self.import_from_layer,
+            add_to_toolbar=False,
+            parent=self.iface.mainWindow())
+
+        icon_path = ':/plugins/readsdb/icons/icon_con.png'
+        self.connectedAction = self.add_action(
+            icon_path,
+            text=self.tr(u'Connect/Disconnect SDB database...'),
+            callback=self.sdb_connect,
+            add_to_menu=False,
+            parent=self.iface.mainWindow())
+        self.connectedAction.setCheckable(True)
+
+        icon_path = ':/plugins/readsdb/icons/icon_man.png'
+        self.managerAction = self.add_action(
+            icon_path,
+            text=self.tr(u'Open SDB manager'),
+            callback=self.pysdb_manager,
+            add_to_menu=False,
+            parent=self.iface.mainWindow())
+        self.managerAction.setCheckable(True)
 
         icon_path = ':/plugins/readsdb/icons/icon_opt.png'
         self.add_action(
             icon_path,
             text=self.tr(u'Read SDB options'),
             callback=self.set_options,
+            add_to_menu=False,
             parent=self.iface.mainWindow())
 
         icon_path = ':/plugins/readsdb/icons/icon_loc.png'
@@ -293,6 +569,7 @@ class ReadSDB:
             icon_path,
             text=self.tr(u'Read sites from SDB'),
             callback=self.read_sites,
+            add_to_menu=False,
             parent=self.iface.mainWindow())
 
         icon_path = ':/plugins/readsdb/icons/icon_str.png'
@@ -300,6 +577,7 @@ class ReadSDB:
             icon_path,
             text=self.tr(u'Read structures from SDB'),
             callback=self.read_structures,
+            add_to_menu=False,
             parent=self.iface.mainWindow())
 
         icon_path = ':/plugins/readsdb/icons/icon_net.png'
@@ -307,10 +585,67 @@ class ReadSDB:
             icon_path,
             text=self.tr(u'Plot structures'),
             callback=self.plot_structures,
+            add_to_menu=False,
             parent=self.iface.mainWindow())
 
+        icon_path = ':/plugins/readsdb/icons/icon_edt.png'
+        self.editAction = self.add_action(
+            icon_path,
+            text=self.tr(u'Edit site'),
+            callback=self.edit_site,
+            add_to_menu=False,
+            parent=self.iface.mainWindow())
+        self.editAction.setCheckable(True)
+
         # Check database and set actions
-        self.check_db()
+        #self.check_db()
+
+        # Connect site edit dialog
+        self.manager.siteFind.setPlaceholderText(self.tr(u'Search pattern'))
+        self.manager.siteFind.returnPressed.connect(self.site_find)
+        self.manager.pushAddData.clicked.connect(self.manager_add_data)
+        self.manager.pushDelData.clicked.connect(self.manager_del_data)
+        self.manager.pushAddUnit.clicked.connect(self.manager_add_unit)
+        self.manager.pushDelUnit.clicked.connect(self.manager_del_unit)
+        self.manager.pushAddPlanar.clicked.connect(self.manager_add_planar)
+        self.manager.pushAddLinear.clicked.connect(self.manager_add_linear)
+        self.manager.pushDelStructure.clicked.connect(self.manager_del_structure)
+
+        self.manager.pushSelectCRS.clicked.connect(self.manager_set_crs)
+
+        self.manager.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply)
+        self.manager.buttonBox.button(QDialogButtonBox.Reset).clicked.connect(self.reset)
+
+        xcoord_val = QDoubleValidator(self.manager.xcoord)
+        xcoord_val.setDecimals(4)
+        ycoord_val = QDoubleValidator(self.manager.ycoord)
+        ycoord_val.setDecimals(4)
+        self.manager.xcoord.setValidator(xcoord_val)
+        self.manager.xcoord.setMaxLength(14)
+        self.manager.ycoord.setValidator(ycoord_val)
+        self.manager.ycoord.setMaxLength(14)
+
+        # Check database and set actions
+        self.dbok = False
+        for ac in self.actions[3:]:
+            ac.setDisabled(True)
+        try:
+            p = Path(self.settings.value("sdbname", type=str))
+            if not p.is_file():
+                self.settings.setValue("sdbname", "")
+                raise FileNotFoundError
+            conn = sqlite3.connect(str(p))
+            conn.row_factory = sqlite3.Row
+            conn.execute("pragma encoding='UTF-8'")
+            dtsel = conn.execute("SELECT * FROM (SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags  GROUP BY structdata.id)").fetchall()
+            res = conn.execute("SELECT value FROM meta WHERE name=?", ('crs',)).fetchall()
+            if not res:
+                res = conn.execute("SELECT value FROM meta WHERE name=?", ('proj4',)).fetchall()
+                if not res:
+                    raise sqlite3.OperationalError
+            conn.close()
+        except:
+            self.actions[2].setDisabled(True)
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -320,59 +655,413 @@ class ReadSDB:
                 action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
-        del self.toolbar
+        if hasattr(self, 'toolbar'):
+            del self.toolbar
+        # remove dock
+        if hasattr(self, 'manager'):
+            del self.manager
+        # close db
+        if self.dbok:
+            self.db.rollback()
+            self.query.exec("UPDATE meta SET value = '{}' WHERE name = 'accessed'".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+            self.db.commit()
+            self.db.close()
         # remove svg path
         readsdb_svg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'svg')
         svg_paths = QgsSettings().value('svg/searchPathsForSVG')
-        if readsdb_svg_path in svg_paths:
-            svg_paths.remove(readsdb_svg_path)
-            QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
+        if svg_paths:
+            if readsdb_svg_path in svg_paths:
+                svg_paths.remove(readsdb_svg_path)
+                QgsSettings().setValue('svg/searchPathsForSVG', svg_paths)
+
+    def apply(self):
+        self.query.exec("UPDATE meta SET value = '{}' WHERE name = 'updated'".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+        self.db.commit()
+        self.db.transaction()
+        self.metamodel.setQuery('SELECT * from meta')
+
+    def reset(self):
+        idx = self.siteSelection.currentIndex()
+        self.db.rollback()
+        self.db.transaction()
+        self.sitemodel.select()
+        self.datamodel.select()
+        self.unitmodel.select()
+        self.structmodel.select()
+        self.tagsmodel.select()
+        self.datamodel.relationModel(2).select()
+        self.metamodel.setQuery('SELECT * from meta')
+        self.manager.siteView.setCurrentIndex(idx)
+
+    def struct_changed(self, left, right):
+        # self.structmodel.submit()
+        # self.structmodel.sort(1, Qt.AscendingOrder)
+        # self.datamodel.relationModel(2).sort(1, Qt.AscendingOrder)
+        self.datamodel.relationModel(2).select()
+        # self.manager.structuresView.scrollTo(left, QAbstractItemView.EnsureVisible)
+
+    def sdb_meta(self, name, value=None):
+        if value is None:
+            self.query.exec("SELECT value FROM meta WHERE name='{}'".format(name))
+            return self.query.value(0) if self.query.first() else None
+        else:
+            self.query.exec("SELECT value FROM meta WHERE name='{}'".format(name))
+            if self.query.first():
+                self.query.exec("UPDATE meta SET value = '{}' WHERE name = '{}'".format(value, name))
+            else:
+                self.query.exec("INSERT INTO meta (name,value) VALUES ('{}','{}')".format(name, value))
+
+    def manager_add_data(self):
+        rec = self.datamodel.record()
+        row = self.siteSelection.currentIndex().row()
+        siteid = self.sitemodel.record(row).value('id')
+        rec.setValue(1, siteid)
+        rec.setValue(2, 1)
+        rec.setValue(3, 0)
+        rec.setValue(4, 0)
+        if not self.datamodel.insertRecord(-1, rec):
+            self.log.logMessage('manager_add_data error: {}'.format(self.datamodel.lastError().text()), 'ReadSDB', Qgis.Warning)
+        self.datamodel.select()
+        self.manager.dataView.scrollToBottom()
+
+    def manager_del_data(self):
+        self.datamodel.deleteRowFromTable(self.manager.dataView.currentIndex().row())
+        self.datamodel.select()
+
+    def manager_add_unit(self):
+        self.query.exec("SELECT MAX(pos) FROM units")
+        self.query.first()
+        pos = self.query.value(0)
+        rec = self.unitmodel.record()
+        rec.setValue(1, pos + 1)
+        rec.setValue(2, 'Unit name')
+        if not self.unitmodel.insertRecord(-1, rec):
+            self.log.logMessage('manager_add_unit error: {}'.format(self.unitmodel.lastError().text()), 'ReadSDB', Qgis.Warning)
+        self.unitmodel.select()
+        self.sitemodel.select()
+        self.manager.unitView.scrollToBottom()
+
+    def manager_del_unit(self):
+        row = self.manager.unitView.currentIndex().row()
+        rec = self.unitmodel.record(row)
+        unitid = rec.value(0)
+        self.query.exec("SELECT name FROM sites WHERE id_units={}".format(unitid))
+        if self.query.first():
+            self.bar.pushWarning('SDB Read', self.tr(u'Current unit is in use e.g. site ' + self.query.value(0)))
+        else:
+            self.unitmodel.deleteRowFromTable(row)
+            self.unitmodel.select()
+            self.sitemodel.select()
+
+    def manager_add_planar(self):
+        self.query.exec("SELECT MAX(pos) FROM structype")
+        self.query.first()
+        pos = self.query.value(0)
+        rec = self.structmodel.record()
+        rec.setValue(1, pos + 1)
+        rec.setValue(2, 'S')
+        rec.setValue(4, 35)
+        rec.setValue(5, 13)
+        rec.setValue(6, 1)
+        if not self.structmodel.insertRecord(-1, rec):
+            self.log.logMessage('manager_add_planar error: {}'.format(self.structmodel.lastError().text()), 'ReadSDB', Qgis.Warning)
+        self.structmodel.select()
+        self.datamodel.relationModel(2).select()
+        self.datamodel.select()
+        self.manager.structuresView.scrollToBottom()
+
+    def manager_add_linear(self):
+        self.query.exec("SELECT MAX(pos) FROM structype")
+        self.query.first()
+        pos = self.query.value(0)
+        rec = self.structmodel.record()
+        rec.setValue(1, pos + 1)
+        rec.setValue(2, 'L')
+        rec.setValue(4, 78)
+        rec.setValue(5, 13)
+        rec.setValue(6, 0)
+        if not self.structmodel.insertRecord(-1, rec):
+            self.log.logMessage('manager_add_linear error: {}'.format(self.structmodel.lastError().text()), 'ReadSDB', Qgis.Warning)
+        self.structmodel.select()
+        self.datamodel.select()
+        self.manager.structuresView.scrollToBottom()
+
+    def manager_del_structure(self):
+        row = self.manager.structuresView.currentIndex().row()
+        rec = self.structmodel.record(row)
+        strucid = rec.value(0)
+        self.query.exec("SELECT sites.name as name FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units  WHERE structdata.id_structype = {} LIMIT 1".format(strucid))
+        if self.query.first():
+            self.bar.pushWarning('SDB Read', self.tr(u'Current structure is in use e.g. site ' + self.query.value(0)))
+        else:
+            self.structmodel.deleteRowFromTable(row)
+            self.structmodel.select()
+            self.datamodel.relationModel(2).select()
+            self.datamodel.select()
+
+    def manager_set_crs(self):
+        crs_dlg = QgsProjectionSelectionDialog(self.manager)
+        if crs_dlg.exec():
+            self.sdb_meta('crs', crs_dlg.crs().authid())
+            self.metamodel.setQuery('SELECT * from meta')
+
+    def updateData(self, selected, deselected):
+        # self.manager.setWindowTitle(self.tr(u'Current site') + ' {}'.format(selected.data()))
+        self.mapper.setCurrentModelIndex(selected)
+        self.datamodel.setFilter("structdata.id_sites={}".format(self.sitemodel.record(selected.row()).value("id")))
+        self.datamodel.select()
+
+    def site_find(self):
+        row = self.manager.siteView.currentIndex().row()
+        if row < self.sitemodel.rowCount() - 1:
+            start = self.sitemodel.index(row + 1, 2)
+        else:
+            start = self.sitemodel.index(0, 2)
+        matches = self.sitemodel.match(start, Qt.DisplayRole, self.manager.siteFind.text(), 2, Qt.MatchContains)
+        if matches:
+            index = matches[0]
+            self.manager.siteView.setCurrentIndex(index)
+        else:
+            start = self.sitemodel.index(0, 2)
+            matches = self.sitemodel.match(start, Qt.DisplayRole, self.manager.siteFind.text(), 2, Qt.MatchContains)
+            if matches:
+                index = matches[0]
+                self.manager.siteView.setCurrentIndex(index)
+
+    def check_site_layer(self):
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.editAction.setChecked(False)
+            self.editAction.setEnabled(False)
+
+    def calc_gc(self, point=None):
+        """Calculate Grid convergence for project CRS"""
+        crsSrc = QgsProject.instance().crs()
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
+        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
+
+        if point is None:
+            point = self.iface.mapCanvas().extent().center()
+        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
+
+        if point_ll.y() < 89.9:
+            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() + 0.01)
+            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
+            gc = point.azimuth(point_north)
+        else:
+            point_ll_shift = QgsPointXY(point_ll.x(), point_ll.y() - 0.01)
+            point_north = xform.transform(point_ll_shift, QgsCoordinateTransform.ReverseTransform)
+            gc = point_north.azimuth(point)
+        return gc
+
+    def calc_md(self, point=None, time=date.today()):
+        """Calculate magnetic declination uising Christopher Weiss geomag library.
+
+        Adapted from the geomagc software and World Magnetic Model of the NOAA
+        Satellite and Information Service, National Geophysical Data Center
+        http://www.ngdc.noaa.gov/geomag/WMM/DoDWMM.shtml
+        """
+        crsSrc = QgsProject.instance().crs()
+        crsDst = QgsCoordinateReferenceSystem.fromEpsgId(4326)
+        xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
+
+        if point is None:
+            point = self.iface.mapCanvas().extent().center()
+        point_ll = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
+
+        mag = GM.GeoMag(point_ll.y(), point_ll.x(), time=time)
+        return mag.dec
 
     def sanitize(self, text):
         rtext = ''
         if text is not None:
-            rtext = text.replace('\r\n', ' ').replace('\n', ' ')
+            rtext = str(text).replace('\r\n', ' ').replace('\n', ' ')
         return rtext
 
-    def set_connection(self):
-        """Select database and set plugin options"""
-        # show the dialog
-        self.connect_dlg.show()
-        # populate dialog
-        if self.settings.value("gui/sdbname", type=str):
-            self.connect_dlg.sdbinfo(self.settings.value("gui/sdbname", type=str))
+    def sdb_open(self):
+        #self.open_dlg.show()
+        # Populate info
+        self.open_dlg.sdbinfo(self.settings.value("sdbname", type=str))
         # Run the dialog event loop
-        result = self.connect_dlg.exec_()
-        # See if OK was pressed
-        if result:
+        if self.open_dlg.exec():
+            self.connectedAction.setChecked(False)
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
+            self.dbok = False
+            self.actions[2].setDisabled(False)
+            for ac in self.actions[3:]:
+                ac.setDisabled(True)
+
+    def sdb_connect(self):
+        if self.connectedAction.isChecked():
             self.check_db()
+            self.manager.siteView.setCurrentIndex(self.sitemodel.index(0, 2))
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_discon.png'))
+        else:
+            if self.db.isOpen():
+                self.db.close()
+            if self.managerAction.isChecked():
+                self.managerAction.setChecked(False)
+                self.iface.removeDockWidget(self.manager)
+            self.editSiteTool = None
+            self.editAction.setChecked(False)
+            self.dbok = False
+            for ac in self.actions[3:]:
+                ac.setDisabled(True)
+            self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
+
+    def pysdb_manager(self):
+        """Add PySDB manager"""
+        if self.managerAction.isChecked():
+            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.manager)
+        else:
+            self.iface.removeDockWidget(self.manager)
 
     def set_options(self):
         """Select database and set plugin options"""
         # show the dialog
         self.options_dlg.show()
         # populate dialog
-        self.options_dlg.angle_gc.setText(self.settings.value("gui/angle_gc", type=str))
-        self.options_dlg.angle_md.setText(self.settings.value("gui/angle_md", type=str))
-        self.options_dlg.offset.setText(self.settings.value("gui/offset", type=str))
-        self.options_dlg.corr_gc_auto.setChecked(self.settings.value("gui/auto_gc", type=bool))
-        self.options_dlg.corr_md_auto.setChecked(self.settings.value("gui/auto_md", type=bool))
+        self.options_dlg.angle_gc.setText(self.settings.value("angle_gc", type=str))
+        self.options_dlg.angle_md.setText(self.settings.value("angle_md", type=str))
+        self.options_dlg.offset.setText(self.settings.value("offset", type=str))
+        self.options_dlg.linmulti.setText(self.settings.value("linmulti", type=str))
+        self.options_dlg.corr_gc_auto.setChecked(self.settings.value("auto_gc", type=bool))
+        self.options_dlg.corr_md_auto.setChecked(self.settings.value("auto_md", type=bool))
         # set magnetic declination calendar
         try:
-            md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
-        except ValueError:
-            md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+            md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
+        except TypeError:
+            md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
         self.options_dlg.dateEdit.setDate(QDate(md_time.year, md_time.month, md_time.day))
         # Run the dialog event loop
-        self.options_dlg.exec_()
+        self.options_dlg.exec()
+
+    def get_add_unit(self, unitname, query=None):
+        if query is None:
+            query = self.query
+        query.exec("SELECT id FROM units WHERE name='{}'".format(unitname))
+        if query.first():
+            idunit = query.value(0)
+        else:
+            query.exec("SELECT MAX(pos) FROM units")
+            query.first()
+            pos = query.value(0)
+            query.exec("INSERT INTO units (pos,name) VALUES ({},'{}')".format(pos + 1, unitname))
+            idunit = query.lastInsertId()
+        return idunit
+
+    def add_update_site(self, idunit, name, x, y, desc, update=False, query=None):
+        if query is None:
+            query = self.query
+        if update:
+            query.exec("SELECT id FROM sites WHERE name='{}'".format(name))
+            if query.first():
+                query.exec("UPDATE sites SET id_units={}, x_coord={}, y_coord={}, description='{}' WHERE name='{}'".format(idunit, x, y, desc, name))
+        else:
+            query.exec("INSERT INTO sites (id_units,name,x_coord,y_coord,description) VALUES ({},'{}',{},{},'{}')".format(idunit, name, x, y, desc))
+
+    def import_from_layer(self):
+        layers = QgsProject.instance().mapLayers().values()
+        print(layers)
+        if len(layers) > 0:
+            dlg = ReadSDBImportLayer(self)
+            if not self.dbok:
+                dlg.radioButtonNew.setChecked(True)
+                dlg.radioButtonNew.setEnabled(False)
+                dlg.radioButtonUpdate.setChecked(False)
+                dlg.radioButtonUpdate.setEnabled(False)
+            else:
+                dlg.radioButtonNew.setChecked(False)
+                dlg.radioButtonNew.setEnabled(True)
+                dlg.radioButtonUpdate.setChecked(True)
+                dlg.radioButtonUpdate.setEnabled(True)
+            result = dlg.exec()
+            if result:
+                if dlg.radioButtonNew.isChecked():
+                    fname, _ = QFileDialog.getSaveFileName(None, 'New database', '.', 'SDB database (*.sdb)')
+                    if fname:
+                        QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
+                        # self.setCursor(Qt.WaitCursor)
+                        p = Path(fname)
+                        if not p.suffix:
+                            p = p.with_suffix('.sdb')
+                        # close if open
+                        if hasattr(self, 'db'):
+                            self.reset()
+                            self.db.close()
+                            self.editSiteTool = None
+                            self.editAction.setChecked(False)
+                        db = QSqlDatabase.addDatabase('QSQLITE')
+                        db.setDatabaseName(str(p))
+                        if not db.open():
+                            QMessageBox.critical(None, "Cannot open database",
+                                                 "Unable to establish a database connection.\n"
+                                                 "This example needs SQLite support. Please read the Qt SQL "
+                                                 "driver documentation for information how to build it.\n\n"
+                                                 "Click Cancel to exit.",
+                                                 QMessageBox.Cancel)
+                            return
+                        # process layer
+                        layer = dlg.layerCombo.currentLayer()
+                        site_field = dlg.siteCombo.currentField()
+                        unit_field = dlg.unitCombo.currentField()
+                        desc_field = dlg.descCombo.currentField()
+                        query = QSqlQuery()
+                        for sql in SCHEMA_NEW.splitlines():
+                            query.exec(sql)
+                        # Insert metadata
+                        query.exec("INSERT INTO meta (name,value) VALUES ('version','{}')".format(SDB_VERSION))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('crs','{}')".format(layer.crs().authid()))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('created','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('updated','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        query.exec("INSERT INTO meta (name,value) VALUES ('accessed','{}')".format(datetime.now().strftime("%d.%m.%Y %H:%M")))
+                        # Insert sites and units
+                        features = layer.getFeatures()
+                        for feature in features:
+                            pt = feature.geometry().asPoint()
+                            idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field], query=query)
+                            desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
+                            self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=False, query=query)
+                        db.commit()
+                        db.close()
+                        self.settings.setValue("sdbname", str(p))
+                        self.check_db()
+                        self.editSiteTool = None
+                        self.editAction.setChecked(False)
+                        self.dbok = False
+                        for ac in self.actions[3:]:
+                            ac.setDisabled(True)
+                        self.connectedAction.setChecked(False)
+                        self.connectedAction.setIcon(QIcon(':/plugins/readsdb/icons/icon_con.png'))
+                        self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully created'))
+                elif dlg.radioButtonUpdate.isChecked():
+                    QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
+                    layer = dlg.layerCombo.currentLayer()
+                    site_field = dlg.siteCombo.currentField()
+                    unit_field = dlg.unitCombo.currentField()
+                    desc_field = dlg.descCombo.currentField()
+                    features = layer.getFeatures()
+                    for feature in features:
+                        pt = feature.geometry().asPoint()
+                        idunit = 1 if unit_field == '' else self.get_add_unit(feature[unit_field])
+                        desc = '' if desc_field == '' else self.sanitize(str(feature[desc_field]))
+                        self.add_update_site(idunit, feature[site_field], pt.x(), pt.y(), desc, update=True)
+                    self.sdb_meta('crs', layer.crs().authid())
+                    self.apply()
+                    self.check_db()
+                    self.bar.pushSuccess('SDB Read', self.tr(u'Database succesfully updated'))
+                else:
+                    pass
+                # recursively walk back the cursor to a pointer
+                while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
+                    QgsApplication.instance().restoreOverrideCursor()
+        else:
+            self.bar.pushWarning('SDB Import/Update', self.tr(u'No layer in project.'))
 
     def create_layer(self, name, fields):
         """Create temporary point layer"""
         crs = QgsCoordinateReferenceSystem()
-        proj = self.sdb.meta('crs')
-        crs.createFromUserInput(proj)
+        crs.createFromUserInput(self.sdb_meta('crs'))
         lyr_fields = QgsFields()
-        lyr_fields.append(QgsField('id', QVariant.Int))
         for key in fields:
             lyr_fields.append(QgsField(key, fields[key]))
         layer = QgsMemoryProviderUtils.createMemoryLayer(name, lyr_fields, QgsWkbTypes.Point, crs)
@@ -386,13 +1075,14 @@ class ReadSDB:
             layer = self.create_layer('Sites', site_fields)
             provider = layer.dataProvider()
             layer.startEditing()
-            for ix, rec in enumerate(self.sdb.execsql(SDB._SITE_SELECT)):
+            self.query.exec("SELECT sites.id as id, sites.name as name, units.name as unit, sites.x_coord as x, sites.y_coord as y, sites.description as description FROM sites INNER JOIN units ON units.id = sites.id_units ORDER BY sites.id")
+            while self.query.next():
                 feature = QgsFeature()
-                feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(rec['x'], rec['y'])))
-                feature.setAttributes([ix,
-                                       rec['name'],
-                                       rec['unit'],
-                                       self.sanitize(rec['description'])
+                feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(self.query.value('x'), self.query.value('y'))))
+                feature.setAttributes([self.query.value('id'),
+                                       self.query.value('name'),
+                                       self.query.value('unit'),
+                                       self.sanitize(self.query.value('description'))
                                        ])
                 provider.addFeatures([feature])
 
@@ -404,13 +1094,18 @@ class ReadSDB:
             QgsProject.instance().addMapLayer(layer)
             # store pointer
             self.sites_layer = layer
+            # enable site edit action
+            self.editAction.setEnabled(True)
 
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
                 QgsApplication.instance().restoreOverrideCursor()
-            self.iface.messageBar().pushSuccess('SDB Read', '{} sites read successfully.'.format(ix + 1))
+            if layer.featureCount() > 0:
+                self.bar.pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'sites read successfully'))
+            else:
+                self.bar.pushWarning('SDB Read', self.tr(u'There are no sites in database'))
         else:
-            self.iface.messageBar().pushWarning('SDB Read', 'Sites layer already exists.')
+            self.bar.pushWarning('SDB Read', self.tr(u'Sites layer already exists.'))
 
     def read_structures(self):
         """Read structures from SDB"""
@@ -426,16 +1121,23 @@ class ReadSDB:
         self.structures_dlg.show()
         # populate dialog
         self.structures_dlg.comboStructure.clear()
-        self.structures_dlg.comboStructure.addItems(self.sdb.structures())
+        self.query.exec("SELECT structure FROM structype")
+        while self.query.next():
+            self.structures_dlg.comboStructure.addItem(self.query.value(0))
         self.structures_dlg.comboUnit.clear()
-        self.structures_dlg.comboUnit.addItems(['Any'] + self.sdb.units())
+        self.structures_dlg.comboUnit.addItem('Any')
+        self.query.exec("SELECT name FROM units")
+        while self.query.next():
+            self.structures_dlg.comboUnit.addItem(self.query.value(0))
         self.structures_dlg.checkAverage.setChecked(False)
         self.structures_dlg.checkSelected.setEnabled(selected_enable)
         self.structures_dlg.checkSelected.setChecked(selected_enable)
         self.structures_dlg.listTags.clear()
-        self.structures_dlg.listTags.addItems(self.sdb.tags())
+        self.query.exec("SELECT name FROM tags")
+        while self.query.next():
+            self.structures_dlg.listTags.addItem(self.query.value(0))
         # Run the dialog event loop
-        result = self.structures_dlg.exec_()
+        result = self.structures_dlg.exec()
         # See if OK was pressed
         if result:
             QgsApplication.instance().setOverrideCursor(QCursor(Qt.WaitCursor))
@@ -454,12 +1156,14 @@ class ReadSDB:
             xform = QgsCoordinateTransform(crsSrc, crsDst, QgsProject.instance())
             # declination calculated for creation date of sdb database
             try:
-                md_time = datetime.strptime(self.sdb.meta('measured'), "%d.%m.%Y %H:%M").date()
-            except ValueError:
-                md_time = datetime.strptime(self.sdb.meta('created'), "%d.%m.%Y %H:%M").date()
+                md_time = datetime.strptime(self.sdb_meta('measured'), "%d.%m.%Y %H:%M").date()
+            except (ValueError, TypeError):
+                md_time = datetime.strptime(self.sdb_meta('created'), "%d.%m.%Y %H:%M").date()
 
             struct = str(self.structures_dlg.comboStructure.currentText())
-            layer._is_planar = int(self.sdb.is_planar(struct))
+            self.query.exec("SELECT planar FROM structype WHERE structure='{}'".format(struct))
+            self.query.first()
+            layer._is_planar = self.query.value(0)
             unit = str(self.structures_dlg.comboUnit.currentText())
             if unit == 'Any':
                 unit = None
@@ -469,28 +1173,43 @@ class ReadSDB:
             if selected_enable and self.structures_dlg.checkSelected.isChecked():
                 sites = [f['name'] for f in self.sites_layer.selectedFeatures()]
             else:
-                sites = self.sdb.sites(structs=struct, units=unit, tags=tags)
-            # get scale for label offset (linear needs more)
-            off_coef = 1 if layer.customProperty('SDB_planar') else 2
+                sites = []
+                self.query.exec(sdb_make_select(structs=struct, units=unit, tags=tags))
+                while self.query.next():
+                    sites.append(self.query.value('name'))
+                sites = sorted(list(set(sites)))  # IS IT OK?
+            # get scale for label offset (use linear multiplier for linear features)
+            off_coef = 1.0 if layer._is_planar else self.settings.value("linmulti", type=float)
 
             # create features from data rows
-            ix = 0
             for site in sites:
                 # do site select to get data
-                dt = self.sdb.execsql(self.sdb._make_select(sites=site, structs=struct, units=unit, tags=tags))
+                self.query.exec(sdb_make_select(sites=site, structs=struct, units=unit, tags=tags))
                 # average?
-                if self.structures_dlg.checkAverage.isChecked() and len(dt) > 1:
-                    g = self.sdb.group(struct, sites=site, units=unit, tags=tags)
-                    rec = dict(dt[0])
-                    if layer._is_planar:
-                        azi, inc = g.ortensor.eigenfols[0].dd
-                    else:
-                        azi, inc = g.ortensor.eigenlins[0].dd
-                    rec['azimuth'] = float(azi)
-                    rec['inclination'] = float(inc)
-                    rec['description'] = 'Averaged from {} data'.format(len(dt))
-                    rec['tags'] = None
-                    dt = [rec]
+                dt = []
+                if self.structures_dlg.checkAverage.isChecked():
+                    if self.query.first():
+                        azi = [self.query.value('azimuth')]
+                        inc = [self.query.value('inclination')]
+                        rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'structure', 'planar', 'description', 'tags']}
+                        while self.query.next():
+                            azi.append(self.query.value('azimuth'))
+                            inc.append(self.query.value('inclination'))
+                        if layer._is_planar:
+                            g = folset.from_array(azi, inc)
+                            dd = g.ortensor().eigenfols[0].geo
+                        else:
+                            g = linset.from_array(azi, inc)
+                            dd = g.ortensor().eigenlins[0].geo
+                        rec['azimuth'] = float(dd[0])
+                        rec['inclination'] = float(dd[1])
+                        rec['description'] = 'Averaged from {} data'.format(len(g))
+                        rec['tags'] = None
+                        dt = [rec]
+                else:
+                    while self.query.next():
+                        rec = {key: self.query.value(key) for key in ['name', 'x', 'y', 'unit', 'azimuth', 'inclination', 'structure', 'planar', 'description', 'tags']}
+                        dt.append(rec)
                 # add features
                 for rec in dt:
                     feature = QgsFeature()
@@ -499,21 +1218,20 @@ class ReadSDB:
                     # do possible azimuth corrections in canvas crs
                     point_canvas = xform.transform(point, QgsCoordinateTransform.ForwardTransform)
                     delta = 0
-                    delta += self.calc_gc(point=point_canvas) if self.settings.value("gui/auto_gc", type=bool) else self.settings.value("gui/angle_gc", type=float)
-                    delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("gui/auto_md", type=bool) else self.settings.value("gui/angle_md", type=float)
+                    delta += self.calc_gc(point=point_canvas) if self.settings.value("auto_gc", type=bool) else self.settings.value("angle_gc", type=float)
+                    delta += self.calc_md(point=point_canvas, time=md_time) if self.settings.value("auto_md", type=bool) else self.settings.value("angle_md", type=float)
                     rotation = rec['azimuth'] + delta
                     # calculate label offset
-                    offx = off_coef * self.settings.value("gui/offset", type=float) * sin(rotation * pi / 180.0)
-                    offy = -off_coef * self.settings.value("gui/offset", type=float) * cos(rotation * pi / 180.0)
-                    atts = [ix, rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
+                    offx = off_coef * self.settings.value("offset", type=float) * sin(rotation * pi / 180.0)
+                    offy = -off_coef * self.settings.value("offset", type=float) * cos(rotation * pi / 180.0)
+                    atts = [rec['name'], rec['unit'], rec['azimuth'], rec['inclination'],
                             rec['structure'], rec['tags'], self.sanitize(rec['description']),
                             rec['planar'], rotation, int(round(rec['inclination'])), '{},{}'.format(offx, offy)]
                     feature.setAttributes(atts)
                     provider.addFeatures([feature])
-                    ix += 1
 
             layer.commitChanges()
-            if ix > 0:
+            if layer.featureCount() > 0:
                 # Style layer
                 if layer._is_planar:
                     layer.loadNamedStyle(self.res_path('styles/planar.qml'))
@@ -522,9 +1240,9 @@ class ReadSDB:
                 layer.triggerRepaint()
                 # add to project
                 QgsProject.instance().addMapLayer(layer)
-                self.iface.messageBar().pushSuccess('SDB Read', '{} structures read successfully.'.format(ix))
+                self.bar.pushSuccess('SDB Read', '{} '.format(layer.featureCount()) + self.tr(u'structures read successfully'))
             else:
-                self.iface.messageBar().pushSuccess('SDB Read', 'No structures found. Choose different criteria.')
+                self.bar.pushSuccess('SDB Read', self.tr(u'No structures found. Choose different criteria'))
 
             # recursively walk back the cursor to a pointer
             while QgsApplication.instance().overrideCursor() is not None and QgsApplication.instance().overrideCursor().shape() == Qt.WaitCursor:
@@ -551,4 +1269,24 @@ class ReadSDB:
             # prepare stereo net
             self.plot_dlg.plotnet()
             # Run the dialog event loop
-            self.plot_dlg.exec_()
+            self.plot_dlg.exec()
+
+    def edit_site(self):
+        """Select database and set plugin options"""
+        if self.sites_layer not in QgsProject.instance().mapLayers().values():
+            self.bar.pushSuccess('SDB Read', self.tr(u'You have to read localities before use this tool.'))
+            self.editAction.setChecked(False)
+        else:
+            if self.editAction.isChecked():
+                self.editSiteTool = QgsMapToolIdentifyFeature(self.iface.mapCanvas())
+                self.editSiteTool.setLayer(self.sites_layer)
+                self.iface.mapCanvas().setMapTool(self.editSiteTool)
+                self.editSiteTool.featureIdentified.connect(self.on_site_edit)
+            else:
+                self.editSiteTool = None
+
+    def on_site_edit(self, feature):
+        matches = self.sitemodel.match(self.sitemodel.index(0, 2), Qt.DisplayRole, feature['name'], 2, Qt.MatchExactly)
+        if matches:
+            index = matches[0]
+            self.manager.siteView.setCurrentIndex(index)

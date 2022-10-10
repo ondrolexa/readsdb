@@ -28,21 +28,18 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from qgis.core import *
 
-import matplotlib
 # Make sure that we are using QT5
+import matplotlib
 matplotlib.use('Qt5Agg')
+
+# Need latest APSG
+from apsg import StereoNet, folset, linset, fol, lin, apsg_conf
+apsg_conf['dpi'] = 75
+
 import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-from apsg import *
-
-# qhull workaroud
-import platform
-qgis_qhull_fails = platform.platform().startswith('Linux')
-if qgis_qhull_fails:
-    from .stereogrid_workaround import StereoGrid as StereoGridQGIS
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/readsdb_plot.ui'))
@@ -52,30 +49,21 @@ class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
 
     def __init__(self, parent=None):
-        # fig, self.axes = plt.subplots()
-        # t = np.arange(0.0, 3.0, 0.01)
-        # s = np.sin(2 * np.pi * t)
-        # self.axes.plot(t, s)
         self.net = StereoNet()
-
-        FigureCanvas.__init__(self, self.net.fig)
+        self.net.init_figure()
+        super(MyMplCanvas, self).__init__(self.net.fig)
+        #FigureCanvas.__init__(self, self.net.fig)
         self.setParent(parent)
-
-        FigureCanvas.setSizePolicy(self,
+        super(MyMplCanvas, self).setSizePolicy(
                                    QtWidgets.QSizePolicy.Expanding,
                                    QtWidgets.QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
+        super(MyMplCanvas, self).updateGeometry()
 
 
 class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, readsdb, parent=None):
         """Constructor."""
         super(ReadSDBPlotDialog, self).__init__(parent, Qt.WindowStaysOnTopHint)
-        # Set up the user interface from Designer.
-        # After setupUI you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
         self.pushApply.clicked.connect(self.plotnet)
         self.data_layers = []
@@ -89,8 +77,9 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
         return self.tabWidget.widget(index).findChild(type, name)
 
     def plotnet(self):
-        self.net.grid = self.checkGrid.isChecked()
-        self.net.cla()
+        #self.net.grid = self.checkGrid.isChecked()
+        self.net._kwargs["overlay"] = self.checkGrid.isChecked()
+        self.net.clear()
         for idx, layer in self.data_layers[::-1]:  # plot in right order
             if layer.selectedFeatureCount():
                 features = layer.getSelectedFeatures()
@@ -98,54 +87,37 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
                 features = layer.getFeatures()
             # Create data Group
             if layer._is_planar:
-                g = Group([Fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+                g = folset([fol(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
             else:
-                g = Group([Lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
-            label = repr(g) if self.checkLabels.isChecked() else None
+                g = linset([lin(f.attribute('azi'), f.attribute('inc')) for f in features], layer.name())
+            label = repr(g) if self.checkLabels.isChecked() else ''
             # contours
             if self.opt(idx, QtWidgets.QCheckBox, 'checkContours').isChecked():
                 nlevels = self.opt(idx, QtWidgets.QSpinBox, 'spinLevels').value()
                 sigma = self.opt(idx, QtWidgets.QDoubleSpinBox, 'spinSigma').value()
-                if qgis_qhull_fails:
-                    kwargs = {'cmap': 'Greys', 'zorder': 1}
-                    d = StereoGridQGIS(g, sigma=sigma)
-                    mn = d.values.min()
-                    mx = d.values.max()
-                    levels = np.linspace(mn, mx, nlevels)
-                    levels[-1] += 1e-8
-                    legend = True
-                if self.opt(idx, QtWidgets.QCheckBox, 'checkContoursFilled').isChecked():
-                    if qgis_qhull_fails:
-                        cs = self.net.fig.axes[self.net.active].tricontourf(d.triang, d.values, levels, **kwargs)
-                        self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, colors="k")
-                    else:
-                        self.net.contourf(StereoGrid(g), levels=nlevels, sigma=sigma)
-                else:
-                    if qgis_qhull_fails:
-                        cs = self.net.fig.axes[self.net.active].tricontour(d.triang, d.values, levels, **kwargs)
-                    else:
-                        self.net.contour(StereoGrid(g), levels=nlevels, sigma=sigma)
-                if qgis_qhull_fails:
-                    if legend:
-                        ab = self.net.fig.axes[self.net.active].get_position().bounds
-                        cbaxes = self.net.fig.add_axes([0.1, ab[1] + 0.1 * ab[3], 0.03, 0.8 * ab[3]])
-                        cb = self.net.fig.colorbar(cs, cax=cbaxes)
-                        if label:
-                            cb.ax.set_title(label)
-            # principal
-            eigf = self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked()
-            eigl = self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked()
-            self.net.tensor(g.ortensor, eigenfols=eigf, eigenlins=eigl)
+                self.net.contour(g,
+                                 levels=nlevels,
+                                 sigma=sigma,
+                                 colorbar=self.checkLabels.isChecked(),
+                                 clines=self.opt(idx, QtWidgets.QCheckBox, 'checkContourLines').isChecked()
+                                 )
             # plot data
             markersize = self.opt(idx, QtWidgets.QSpinBox, 'spinSize').value()
             marker = self.opt(idx, QtWidgets.QComboBox, 'comboStyle').currentText()
             if layer._is_planar:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
                     if self.opt(idx, QtWidgets.QCheckBox, 'checkAsPoles').isChecked():
-                        self.net.pole(g, marker=marker, markersize=markersize, label=label)
+                        self.net.pole(g, marker=marker, ms=markersize, label=label)
                     else:
-                        self.net.plane(g, label=label)
+                        self.net.great_circle(g, label=label)
             else:
                 if self.opt(idx, QtWidgets.QCheckBox, 'checkShowData').isChecked():
-                    self.net.line(g, marker=marker, markersize=markersize, label=label)
+                    self.net.line(g, marker=marker, ms=markersize, label=label)
+            ## principal
+            if self.opt(idx, QtWidgets.QCheckBox, 'checkEigPlanes').isChecked():
+                self.net.great_circle(*g.ortensor().eigenfols, label='E-fols' if self.checkLabels.isChecked() else '')
+            if self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked():
+                self.net.line(*g.ortensor().eigenlins, marker='s', ms=8, label='E-lins' if self.checkLabels.isChecked() else '')
+
+        self.net.render()
         self.canvas.draw()
