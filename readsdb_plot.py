@@ -119,5 +119,6 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
             if self.opt(idx, QtWidgets.QCheckBox, 'checkEigLines').isChecked():
                 self.net.line(*g.ortensor().eigenlins, marker='s', ms=8, label='E-lins' if self.checkLabels.isChecked() else '')
 
-        self.net.render()
+        self.net.fig.clear()
+        self.net._render()
         self.canvas.draw()
