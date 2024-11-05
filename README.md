@@ -17,37 +17,26 @@ Download the [ReadSDB plugin](https://github.com/ondrolexa/readsdb/archive/maste
 
 **Note**:All dependencies must be installed within QGIS3 python environment:
 
-  - `Numpy`
-  - `Scipy`
-  - `Matplotlib`
+  - `numpy`
+  - `scipy`
+  - `matplotlib`
+  - `pandas`
+  - `sqlalchemy`
   - `apsg >= 1.0`
 
-On Debian-like Linux distros use apt
+On Debian-like Linux distros use apt:
 
-    sudo apt install python3-pip python3-numpy python3-matplotlib python3-scipy
+    sudo apt install python3-pip python3-numpy python3-matplotlib python3-scipy python3-pandas python3-sqlalchemy
 
-and install APSG in QGIS 3 Python console
+and install APSG using pip into user space:
 
-    >>> import subprocess
-    >>> subprocess.check_output(['pip3', 'install', '--no-deps', '--user', 'apsg'])
+    pip install --user apsg
 
-On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open Python console
+For Ubuntu 23.04 and later Canonical blocked installing or uninstalling pip packages. One possibility is to force pip to install apsg:
 
-    >>> import pip
-    >>> pip.main(['install', '--no-deps', '--user', 'apsg'])
+    pip install --user apsg --break-system-packages
 
-Restart QGIS and enjoy!
-
-On Debian-like Linux distros use apt
-
-    $ sudo apt install python3-numpy3-pip python3-numpy python3-matplotlib python3-scipy
-
-and install APSG in QGIS 3 Python console
-
-    >>> import subprocess
-    >>> subprocess.check_output(['pip3', 'install', '--no-deps', '--user', 'apsg'])
-
-On Windows, numpy, matplotlib and scipy is already installed with QGIS, so open Python console
+On Windows, numpy, matplotlib, scipy and pandas are already installed with QGIS, so we need to install apsg. Open Python console in QGIS and run following commands:
 
     >>> import pip
     >>> pip.main(['install', '--no-deps', '--user', 'apsg'])
