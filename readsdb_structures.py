@@ -8,7 +8,7 @@
                              -------------------
         begin                : 2018-11-03
         git sha              : $Format:%H$
-        copyright            : (C) 2018 by Ondrej Lexa
+        copyright            : (C) 2018-2025 by Ondrej Lexa
         email                : lexa.ondrej@gmail.com
  ***************************************************************************/
 
@@ -27,8 +27,9 @@ from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui/readsdb_structures.ui'))
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_structures.ui")
+)
 
 
 class ReadSDBStructuresDialog(QtWidgets.QDialog, FORM_CLASS):

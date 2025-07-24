@@ -8,7 +8,7 @@
                              -------------------
         begin                : 2018-11-03
         git sha              : $Format:%H$
-        copyright            : (C) 2018 by Ondrej Lexa
+        copyright            : (C) 2018-2025 by Ondrej Lexa
         email                : lexa.ondrej@gmail.com
  ***************************************************************************/
 
@@ -25,13 +25,14 @@ import os
 
 from PyQt5 import uic
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, QFileInfo
-from qgis.gui import (QgsFieldComboBox, QgsMapLayerComboBox)
+from PyQt5.QtCore import Qt
+from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.core import QgsMapLayerProxyModel, QgsFieldProxyModel, QgsProject
 
 
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui/readsdb_importlayer.ui'))
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_importlayer.ui")
+)
 
 
 class ReadSDBImportLayer(QtWidgets.QDialog, FORM_CLASS):
@@ -64,17 +65,19 @@ class ReadSDBImportLayer(QtWidgets.QDialog, FORM_CLASS):
     def layer_changed(self):
         layer = self.layerCombo.currentLayer()
         self.siteCombo.setLayer(layer)
-        self.siteCombo.setField('name')
+        self.siteCombo.setField("name")
         self.unitCombo.setLayer(layer)
-        self.unitCombo.setField('unit')
+        self.unitCombo.setField("unit")
         self.descCombo.setLayer(layer)
-        self.descCombo.setField('description')
+        self.descCombo.setField("description")
 
     def accept(self):
         layer = self.layerCombo.currentLayer()
         if layer is not None:
-            if self.siteCombo.currentField() != '':
+            if self.siteCombo.currentField() != "":
                 QtWidgets.QDialog.accept(self)
             else:
-                QtWidgets.QMessageBox.warning(self, 'Import from layer', 'Site name cannot be empty!')
+                QtWidgets.QMessageBox.warning(
+                    self, "Import from layer", "Site name cannot be empty!"
+                )
                 return

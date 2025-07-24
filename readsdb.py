@@ -8,7 +8,7 @@
                               -------------------
         begin                : 2018-11-03
         git sha              : $Format:%H$
-        copyright            : (C) 2018 by Ondrej Lexa
+        copyright            : (C) 2018-2025 by Ondrej Lexa
         email                : lexa.ondrej@gmail.com
  ***************************************************************************/
 
@@ -86,7 +86,7 @@ try:
 except Exception:
     apsg_check = False
 
-SDB_VERSION = "3.1.0"
+SDB_VERSION = "3.2.1"
 
 SCHEMA_NEW = """pragma auto_vacuum=0;
 pragma default_cache_size=2000;

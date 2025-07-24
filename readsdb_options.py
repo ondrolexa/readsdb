@@ -8,7 +8,7 @@
                              -------------------
         begin                : 2018-11-03
         git sha              : $Format:%H$
-        copyright            : (C) 2018 by Ondrej Lexa
+        copyright            : (C) 2018-2025 by Ondrej Lexa
         email                : lexa.ondrej@gmail.com
  ***************************************************************************/
 
@@ -27,8 +27,9 @@ from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui/readsdb_options.ui'))
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_options.ui")
+)
 
 
 class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
@@ -51,19 +52,23 @@ class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
             self.settings.setValue("auto_gc", bool(self.corr_gc_auto.isChecked()))
             self.settings.setValue("auto_md", bool(self.corr_md_auto.isChecked()))
             super(ReadSDBOptionsDialog, self).accept()
-        except:
-            QtWidgets.QMessageBox.warning(self, 'Warning', self.readsdb.tr(u'Check option values.'))
+        except Exception:
+            QtWidgets.QMessageBox.warning(
+                self, "Warning", self.readsdb.tr("Check option values.")
+            )
 
     def calc_gc(self):
         """Calculate Grid convergence at map canvas centre"""
         gc = self.readsdb.calc_gc()
-        self.angle_gc.setText('{:g}'.format(gc))
+        self.angle_gc.setText("{:g}".format(gc))
 
     def calc_md(self):
         dec = self.readsdb.calc_md(time=self.dateEdit.date().toPyDate())
-        self.angle_md.setText('{:g}'.format(dec))
+        self.angle_md.setText("{:g}".format(dec))
 
     def store_date(self):
-        self.readsdb.sdb_meta('measured', self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M"))
-        self.readsdb.metamodel.setQuery('SELECT * from meta')
-        self.readsdb.iface.messageBar().pushSuccess('SDB Read', 'Date stored in SDB.')
+        self.readsdb.sdb_meta(
+            "measured", self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M")
+        )
+        self.readsdb.metamodel.setQuery("SELECT * from meta")
+        self.readsdb.iface.messageBar().pushSuccess("SDB Read", "Date stored in SDB.")
