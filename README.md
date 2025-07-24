@@ -22,7 +22,7 @@ Download the [ReadSDB plugin](https://github.com/ondrolexa/readsdb/archive/maste
   - `matplotlib`
   - `pandas`
   - `sqlalchemy`
-  - `apsg >= 1.0`
+  - `apsg >= 1.3`
 
 On Debian-like Linux distros use apt:
 
