@@ -23,21 +23,18 @@
 """
 import os
 
-from PyQt5 import uic
-from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
-
 # Make sure that we are using QT5
 import matplotlib
+from PyQt5 import QtWidgets, uic
+from PyQt5.QtCore import Qt
 
 matplotlib.use("Qt5Agg")
+# Need latest APSG
+from apsg import StereoNet, apsg_conf, fol, folset, lin, linset
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-# Need latest APSG
-from apsg import StereoNet, folset, linset, fol, lin, apsg_conf
-
-apsg_conf["dpi"] = 75
+apsg_conf.dpi = 75
 
 
 FORM_CLASS, _ = uic.loadUiType(
