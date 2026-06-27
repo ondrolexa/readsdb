@@ -1,0 +1,26 @@
+[general]
+name=ReadSDB
+description=Read data from PySDB database data into QGIS
+category=Database
+hasProcessingProvider=False
+about=ReadSDB is plugin to select and import data from PySDB structural database.
+icon=resources/images/icon_sdb.png
+tags=geology, structural data
+
+# credits and contact
+author=Ondrej LEXA
+email=lexa.ondrej@gmail.com
+homepage=https://github.com/ondrolexa/readsdb
+repository=https://github.com/ondrolexa/readsdb
+tracker=https://github.com/ondrolexa/readsdb/issues/
+
+# QGIS context
+deprecated=False
+experimental=True
+plugin_dependencies=scipy
+qgisMinimumVersion=3.40
+qgisMaximumVersion=4.99
+
+# versioning
+version=2.0.0
+changelog=

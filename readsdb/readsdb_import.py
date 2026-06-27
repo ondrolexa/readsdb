@@ -1,0 +1,71 @@
+# -*- coding: utf-8 -*-
+
+# ----------------------------------------------------------
+# ReadSDB QGIS Plugin
+# Copyright (C) 2026 Ondrej Lexa
+# ----------------------------------------------------------
+# Licensed under the terms of MIT
+# ----------------------------------------------------------
+
+import os
+
+from qgis.PyQt import uic
+from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtCore import Qt
+from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
+from qgis.core import QgsMapLayerProxyModel, QgsFieldProxyModel, QgsProject
+
+
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_importlayer.ui")
+)
+
+
+class ReadSDBImportLayer(QtWidgets.QDialog, FORM_CLASS):
+    def __init__(self, readsdb, parent=None):
+        """Constructor."""
+        super(ReadSDBImportLayer, self).__init__(
+            parent, Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setupUi(self)
+        # set unit combo
+        self.layerCombo = QgsMapLayerComboBox()
+        self.readsdb = readsdb
+        if readsdb.sites_layer in QgsProject.instance().mapLayers().values():
+            self.layerCombo.setLayer(readsdb.sites_layer)
+        self.layerCombo.setFilters(QgsMapLayerProxyModel.PointLayer)
+        self.horizontalLayoutLayer.addWidget(self.layerCombo)
+        self.siteCombo = QgsFieldComboBox()
+        self.siteCombo.setFilters(QgsFieldProxyModel.String)
+        self.siteCombo.setAllowEmptyFieldName(False)
+        self.verticalLayoutRequired.addWidget(self.siteCombo)
+        self.unitCombo = QgsFieldComboBox()
+        self.unitCombo.setFilters(QgsFieldProxyModel.String)
+        self.unitCombo.setAllowEmptyFieldName(True)
+        self.verticalLayoutOtional.addWidget(self.unitCombo)
+        self.descCombo = QgsFieldComboBox()
+        self.descCombo.setFilters(QgsFieldProxyModel.String)
+        self.descCombo.setAllowEmptyFieldName(True)
+        self.verticalLayoutOtional.addWidget(self.descCombo)
+        self.layer_changed()
+        self.layerCombo.layerChanged.connect(self.layer_changed)
+
+    def layer_changed(self):
+        layer = self.layerCombo.currentLayer()
+        self.siteCombo.setLayer(layer)
+        self.siteCombo.setField("name")
+        self.unitCombo.setLayer(layer)
+        self.unitCombo.setField("unit")
+        self.descCombo.setLayer(layer)
+        self.descCombo.setField("description")
+
+    def accept(self):
+        layer = self.layerCombo.currentLayer()
+        if layer is not None:
+            if self.siteCombo.currentField() != "":
+                QtWidgets.QDialog.accept(self)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self, "Import from layer", "Site name cannot be empty!"
+                )
+                return

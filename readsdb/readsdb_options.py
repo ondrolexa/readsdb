@@ -1,0 +1,62 @@
+# -*- coding: utf-8 -*-
+
+# ----------------------------------------------------------
+# ReadSDB QGIS Plugin
+# Copyright (C) 2026 Ondrej Lexa
+# ----------------------------------------------------------
+# Licensed under the terms of MIT
+# ----------------------------------------------------------
+
+import os
+
+from qgis.PyQt import uic
+from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtCore import Qt
+
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_options.ui")
+)
+
+
+class ReadSDBOptionsDialog(QtWidgets.QDialog, FORM_CLASS):
+    def __init__(self, readsdb, parent=None):
+        """Constructor."""
+        super(ReadSDBOptionsDialog, self).__init__(
+            parent, Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setupUi(self)
+        self.btn_calc_md.clicked.connect(self.calc_md)
+        self.btn_calc_gc.clicked.connect(self.calc_gc)
+        self.btn_store.clicked.connect(self.store_date)
+        self.readsdb = readsdb
+        self.settings = self.readsdb.settings
+
+    def accept(self):
+        try:
+            self.settings.setValue("angle_gc", float(self.angle_gc.text()))
+            self.settings.setValue("angle_md", float(self.angle_md.text()))
+            self.settings.setValue("offset", float(self.offset.text()))
+            self.settings.setValue("linmulti", float(self.linmulti.text()))
+            self.settings.setValue("auto_gc", bool(self.corr_gc_auto.isChecked()))
+            self.settings.setValue("auto_md", bool(self.corr_md_auto.isChecked()))
+            super(ReadSDBOptionsDialog, self).accept()
+        except Exception:
+            QtWidgets.QMessageBox.warning(
+                self, "Warning", self.readsdb.tr("Check option values.")
+            )
+
+    def calc_gc(self):
+        """Calculate Grid convergence at map canvas centre"""
+        gc = self.readsdb.calc_gc()
+        self.angle_gc.setText("{:g}".format(gc))
+
+    def calc_md(self):
+        dec = self.readsdb.calc_md(time=self.dateEdit.date().toPyDate())
+        self.angle_md.setText("{:g}".format(dec))
+
+    def store_date(self):
+        self.readsdb.sdb_meta(
+            "measured", self.dateEdit.date().toPyDate().strftime("%d.%m.%Y %H:%M")
+        )
+        self.readsdb.metamodel.setQuery("SELECT * from meta")
+        self.readsdb.iface.messageBar().pushSuccess("SDB Read", "Date stored in SDB.")

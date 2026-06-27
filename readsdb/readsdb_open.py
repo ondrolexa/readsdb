@@ -1,0 +1,128 @@
+# -*- coding: utf-8 -*-
+
+# ----------------------------------------------------------
+# ReadSDB QGIS Plugin
+# Copyright (C) 2026 Ondrej Lexa
+# ----------------------------------------------------------
+# Licensed under the terms of MIT
+# ----------------------------------------------------------
+
+import os
+import sqlite3
+from qgis.PyQt import uic
+from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtCore import Qt, QFileInfo
+from qgis.core import QgsCoordinateReferenceSystem
+from .plugin_main import SDB_SELECT
+
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "ui/readsdb_open.ui")
+)
+
+
+class ReadSDBOpenDialog(QtWidgets.QDialog, FORM_CLASS):
+    def __init__(self, readsdb, parent=None):
+        """Constructor."""
+        super(ReadSDBOpenDialog, self).__init__(
+            parent, Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setupUi(self)
+        self.btnBrowse.clicked.connect(self.browse)
+        self.readsdb = readsdb
+        self.settings = self.readsdb.settings
+
+    def meta(self, name):
+        res = self.conn.execute(
+            "SELECT value FROM meta WHERE name=?", (name,)
+        ).fetchall()
+        if res:
+            return res[0][0]
+        else:
+            return None
+
+    def add_basic_data(self, name, value):
+        rowPosition = self.sdb_info_basic.rowCount()
+        self.sdb_info_basic.insertRow(rowPosition)
+        self.sdb_info_basic.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(name))
+        self.sdb_info_basic.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(value))
+
+    def sdbinfo(self, filename):
+        """Populate dialog with current values"""
+        self.sdbname.setText(filename)
+        self.sdb_info_basic.setRowCount(0)
+        self.sdb_info_basic.setColumnCount(2)
+        self.sdb_info_basic.setHorizontalHeaderLabels(["name", "value"])
+        try:
+            self.conn = sqlite3.connect(filename)
+            self.conn.row_factory = sqlite3.Row
+            self.conn.text_factory = str
+            self.conn.execute("pragma encoding='UTF-8'")
+            self.conn.execute(SDB_SELECT + " GROUP BY structdata.id LIMIT 1")
+            self.conn.execute("SELECT * FROM attach LIMIT 1")
+            res = self.meta("crs")
+            if res is None:
+                res = self.meta("proj4")
+                if res is None:
+                    raise sqlite3.OperationalError
+            crs = QgsCoordinateReferenceSystem()
+            if not crs.createFromUserInput(res):
+                raise ValueError
+            # basic
+            self.add_basic_data("PySDB database version", self.meta("version"))
+            self.add_basic_data("PySDB database CRS", res)
+            self.add_basic_data("CRS parsed by QGIS", crs.description())
+            self.add_basic_data("PySDB database created", self.meta("created"))
+            self.add_basic_data("PySDB database updated", self.meta("updated"))
+            self.add_basic_data("PySDB database accessed", self.meta("accessed"))
+            n = len(self.conn.execute("SELECT id FROM sites").fetchall())
+            self.add_basic_data("Number of sites", str(n))
+            n = len(self.conn.execute("SELECT id FROM units").fetchall())
+            self.add_basic_data("Number of units", str(n))
+            n = len(
+                self.conn.execute("SELECT id FROM structype WHERE planar=1").fetchall()
+            )
+            self.add_basic_data("Number of planar structure types", str(n))
+            n = len(
+                self.conn.execute("SELECT id FROM structype WHERE planar=0").fetchall()
+            )
+            self.add_basic_data("Number of linear structure types", str(n))
+            n = len(self.conn.execute("SELECT id FROM structdata").fetchall())
+            self.add_basic_data("Number of measurements", str(n))
+            self.sdb_info_basic.horizontalHeader().setSectionResizeMode(
+                1, QtWidgets.QHeaderView.ResizeMode.Stretch
+            )
+            self.sdb_info_basic.resizeColumnsToContents()
+            self.dbok = True
+        except sqlite3.OperationalError:
+            self.add_basic_data(
+                "SDB ERROR", self.readsdb.tr("Selected file is not valid SDB database")
+            )
+            self.dbok = False
+        except ValueError:
+            self.add_basic_data(
+                "CRS ERROR",
+                self.readsdb.tr("is not valid QGIS CRS").format(res),
+            )
+            self.dbok = False
+        finally:
+            if hasattr(self, "conn") and self.conn:
+                self.conn.close()
+
+    def accept(self):
+        if self.dbok:
+            self.settings.setValue("sdbname", self.sdbname.text())
+            super(ReadSDBOpenDialog, self).accept()
+        else:
+            QtWidgets.QMessageBox.warning(
+                self, "Warning", self.readsdb.tr("Please specify correct SDB database")
+            )
+
+    def browse(self):
+        file, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            self.readsdb.tr("Open SDB database"),
+            self.sdbname.text(),
+            "SDB database (*.sdb);;All files (*.*)",
+        )
+        if file:
+            self.sdbinfo(QFileInfo(file).absoluteFilePath())

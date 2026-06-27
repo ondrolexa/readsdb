@@ -1,0 +1,16 @@
+# Develoment dependencies
+# -----------------------
+
+numpy
+matplotlib
+scipy
+
+black
+
+flake8-builtins>=3.1.0
+flake8-eradicate>=1.5
+flake8-isort>=7.0.0
+flake8-qgis>=2.1.0
+
+isort>=8.0.1
+pre-commit>=4.6.0,<5
