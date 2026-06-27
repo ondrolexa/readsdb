@@ -4,17 +4,20 @@
 # ReadSDB QGIS Plugin
 # Copyright (C) 2026 Ondrej Lexa
 # ----------------------------------------------------------
-# Licensed under the terms of MIT
-# ----------------------------------------------------------
+# Licensed under the terms of GNU GPL 2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# --------------------------------------------------------------------
 
 import os
 
-from qgis.PyQt import uic
-from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtCore import Qt
+from qgis.core import QgsFieldProxyModel, QgsMapLayerProxyModel, QgsProject
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
-from qgis.core import QgsMapLayerProxyModel, QgsFieldProxyModel, QgsProject
-
+from qgis.PyQt import QtWidgets, uic
+from qgis.PyQt.QtCore import Qt
 
 FORM_CLASS, _ = uic.loadUiType(
     os.path.join(os.path.dirname(__file__), "ui/readsdb_importlayer.ui")

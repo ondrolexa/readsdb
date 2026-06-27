@@ -13,4 +13,4 @@ The plugin provides the following functionalities:
 
 ## License
 
-Distributed under the terms of the [`MIT` license](LICENSE).
+Distributed under the terms of the [`GPLv2+` license](LICENSE).

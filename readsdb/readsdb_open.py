@@ -4,16 +4,22 @@
 # ReadSDB QGIS Plugin
 # Copyright (C) 2026 Ondrej Lexa
 # ----------------------------------------------------------
-# Licensed under the terms of MIT
-# ----------------------------------------------------------
+# Licensed under the terms of GNU GPL 2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# --------------------------------------------------------------------
 
 import os
 import sqlite3
-from qgis.PyQt import uic
-from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtCore import Qt, QFileInfo
+
 from qgis.core import QgsCoordinateReferenceSystem
-from .plugin_main import SDB_SELECT
+from qgis.PyQt import QtWidgets, uic
+from qgis.PyQt.QtCore import QFileInfo, Qt
+
+SDB_SELECT = "SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags"
 
 FORM_CLASS, _ = uic.loadUiType(
     os.path.join(os.path.dirname(__file__), "ui/readsdb_open.ui")

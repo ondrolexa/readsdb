@@ -4,17 +4,21 @@
 # ReadSDB QGIS Plugin
 # Copyright (C) 2026 Ondrej Lexa
 # ----------------------------------------------------------
-# Licensed under the terms of MIT
-# ----------------------------------------------------------
+# Licensed under the terms of GNU GPL 2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# --------------------------------------------------------------------
 
 import os
 
-from qgis.PyQt import QtWidgets, uic
-from qgis.PyQt.QtCore import Qt
+import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
-
-import matplotlib
+from qgis.PyQt import QtWidgets, uic
+from qgis.PyQt.QtCore import Qt
 
 matplotlib.use("QtAgg")
 from apsg import StereoNet, apsg_conf, fol, folset, lin, linset
@@ -114,14 +118,14 @@ class ReadSDBPlotDialog(QtWidgets.QDialog, FORM_CLASS):
             if self.opt(idx, QtWidgets.QCheckBox, "checkEigPlanes").isChecked():
                 self.net.great_circle(
                     *g.ortensor().eigenfols(),
-                    label="E-fols" if self.checkLabels.isChecked() else ""
+                    label="E-fols" if self.checkLabels.isChecked() else "",
                 )
             if self.opt(idx, QtWidgets.QCheckBox, "checkEigLines").isChecked():
                 self.net.line(
                     *g.ortensor().eigenlins(),
                     marker="s",
                     ms=8,
-                    label="E-lins" if self.checkLabels.isChecked() else ""
+                    label="E-lins" if self.checkLabels.isChecked() else "",
                 )
 
         self.net.fig.clear()

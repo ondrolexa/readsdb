@@ -4,8 +4,13 @@
 # ReadSDB QGIS Plugin
 # Copyright (C) 2026 Ondrej Lexa
 # ----------------------------------------------------------
-# Licensed under the terms of MIT
-# ----------------------------------------------------------
+# Licensed under the terms of GNU GPL 2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# --------------------------------------------------------------------
 
 import os
 import sqlite3
@@ -38,7 +43,6 @@ from qgis.PyQt.QtCore import (
     QSettings,
     Qt,
     QTranslator,
-    QUrl,
     QVariant,
 )
 from qgis.PyQt.QtGui import QCursor, QDoubleValidator, QIcon
@@ -70,17 +74,13 @@ from geomag import geomag
 # project
 from readsdb.__about__ import (
     DIR_PLUGIN_ROOT,
-    __icon_path__,
     __title__,
-    __uri_homepage__,
 )
 from readsdb.toolbelt import PlgLogger
 
-SDB_SELECT = "SELECT sites.name as name, sites.x_coord as x, sites.y_coord as y, units.name as unit, structdata.azimuth as azimuth, structdata.inclination as inclination, structype.structure as structure, structype.planar as planar, structdata.description as description, GROUP_CONCAT(tags.name) AS tags FROM structdata INNER JOIN sites ON structdata.id_sites=sites.id INNER JOIN structype ON structype.id = structdata.id_structype INNER JOIN units ON units.id = sites.id_units LEFT OUTER JOIN tagged ON structdata.id = tagged.id_structdata LEFT OUTER JOIN tags ON tags.id = tagged.id_tags"
-
 # Import the code for the dialog
 from .readsdb_import import ReadSDBImportLayer
-from .readsdb_open import ReadSDBOpenDialog
+from .readsdb_open import SDB_SELECT, ReadSDBOpenDialog
 from .readsdb_options import ReadSDBOptionsDialog
 from .readsdb_plot import ReadSDBPlotDialog
 from .readsdb_structures import ReadSDBStructuresDialog
@@ -870,12 +870,12 @@ class ReadSDBPlugin:
         self._update_apply_reset_buttons()
 
     def _update_apply_reset_buttons(self):
-        self.manager.buttonBox.button(
-            QDialogButtonBox.StandardButton.Apply
-        ).setEnabled(self._dirty)
-        self.manager.buttonBox.button(
-            QDialogButtonBox.StandardButton.Reset
-        ).setEnabled(self._dirty)
+        self.manager.buttonBox.button(QDialogButtonBox.StandardButton.Apply).setEnabled(
+            self._dirty
+        )
+        self.manager.buttonBox.button(QDialogButtonBox.StandardButton.Reset).setEnabled(
+            self._dirty
+        )
 
     def struct_changed(self, left, right):
         self.datamodel.relationModel(2).select()
@@ -1041,20 +1041,22 @@ class ReadSDBPlugin:
 
     def updateData(self, selected, deselected):
         # Detect site edits before switching away
-        if hasattr(self, '_site_original_vals'):
+        if hasattr(self, "_site_original_vals"):
             if (
-                self._site_original_vals['xcoord'] != self.manager.xcoord.text()
-                or self._site_original_vals['ycoord'] != self.manager.ycoord.text()
-                or self._site_original_vals['siteDesc'] != self.manager.siteDesc.toPlainText()
-                or self._site_original_vals['comboUnit'] != self.manager.comboUnit.currentText()
+                self._site_original_vals["xcoord"] != self.manager.xcoord.text()
+                or self._site_original_vals["ycoord"] != self.manager.ycoord.text()
+                or self._site_original_vals["siteDesc"]
+                != self.manager.siteDesc.toPlainText()
+                or self._site_original_vals["comboUnit"]
+                != self.manager.comboUnit.currentText()
             ):
                 self._set_dirty()
         self.mapper.setCurrentModelIndex(selected)
         self._site_original_vals = {
-            'xcoord': self.manager.xcoord.text(),
-            'ycoord': self.manager.ycoord.text(),
-            'siteDesc': self.manager.siteDesc.toPlainText(),
-            'comboUnit': self.manager.comboUnit.currentText(),
+            "xcoord": self.manager.xcoord.text(),
+            "ycoord": self.manager.ycoord.text(),
+            "siteDesc": self.manager.siteDesc.toPlainText(),
+            "comboUnit": self.manager.comboUnit.currentText(),
         }
         self.datamodel.setFilter(
             "structdata.id_sites={}".format(
